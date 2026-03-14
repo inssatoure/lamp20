@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LAMP - Khassaid Bulk Import</title>
+  <style>
+    body { font-family: system-ui; max-width: 700px; margin: 60px auto; background: #0f172a; color: #e2e8f0; padding: 20px; }
+    h1 { color: #2dd4bf; }
+    #log { background: #1e293b; padding: 16px; border-radius: 12px; max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 13px; line-height: 1.8; }
+    .ok { color: #4ade80; }
+    .err { color: #f87171; }
+    .skip { color: #fbbf24; }
+    button { background: #0d9488; color: white; border: none; padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin: 20px 0; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+    #progress { margin: 12px 0; }
+    #bar { height: 8px; background: #334155; border-radius: 8px; overflow: hidden; }
+    #fill { height: 100%; background: #2dd4bf; width: 0%; transition: width 0.3s; }
+    #stats { display: flex; gap: 20px; margin: 16px 0; }
+    .stat { background: #1e293b; padding: 12px 20px; border-radius: 8px; }
+    .stat b { display: block; font-size: 24px; color: #2dd4bf; }
+  </style>
+</head>
+<body>
+  <h1>Khassaid Bulk Import</h1>
+  <p>Select all .txt files from <code>Textes_Arabes_Serigne_Touba/</code></p>
+
+  <input type="file" id="files" multiple accept=".txt" style="display:none">
+  <button id="btn" onclick="document.getElementById('files').click()">Select .txt Files</button>
+
+  <div id="stats" style="display:none">
+    <div class="stat">Imported<b id="s-ok">0</b></div>
+    <div class="stat">Skipped<b id="s-skip">0</b></div>
+    <div class="stat">Errors<b id="s-err">0</b></div>
+    <div class="stat">Total<b id="s-total">0</b></div>
+  </div>
+
+  <div id="progress" style="display:none"><div id="bar"><div id="fill"></div></div></div>
+  <div id="log"></div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+    import { getFirestore, collection, addDoc, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
+
+    const app = initializeApp({
+      apiKey: "AIzaSyAWcGI0OZsHPh-IhglG_4MI9ZcQkmmUKw0",
+      authDomain: "lampridial-19466.firebaseapp.com",
+      projectId: "lampridial-19466",
+      storageBucket: "lampridial-19466.firebasestorage.app",
+      messagingSenderId: "76433392810",
+      appId: "1:76433392810:web:92cac9a34da732f779bcd3"
+    });
+
+    const db = getFirestore(app);
+    const log = document.getElementById('log');
+    const btn = document.getElementById('btn');
+
+    function addLog(msg, cls) {
+      log.innerHTML += `<div class="${cls}">${msg}</div>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function filenameToTitle(name) {
+      return name.replace('.txt', '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    document.getElementById('files').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Importing...';
+      document.getElementById('stats').style.display = 'flex';
+      document.getElementById('progress').style.display = 'block';
+      document.getElementById('s-total').textContent = files.length;
+
+      // Load existing titles to skip duplicates
+      addLog('Loading existing documents...', '');
+      let existingTitles = new Set();
+      try {
+        const snap = await getDocs(collection(db, 'knowledge_base'));
+        snap.forEach(doc => existingTitles.add(doc.data().title));
+        addLog(`Found ${existingTitles.size} existing documents.`, '');
+      } catch (err) {
+        addLog(`Warning: could not load existing docs: ${err.message}`, 'err');
+      }
+
+      let ok = 0, skip = 0, errors = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const title = filenameToTitle(file.name);
+        const pct = ((i + 1) / files.length * 100).toFixed(0);
+        document.getElementById('fill').style.width = pct + '%';
+
+        if (existingTitles.has(title)) {
+          addLog(`SKIP (exists): ${title}`, 'skip');
+          skip++;
+          document.getElementById('s-skip').textContent = skip;
+          continue;
+        }
+
+        try {
+          const text = await file.text();
+          if (!text.trim()) { skip++; continue; }
+
+          await addDoc(collection(db, 'knowledge_base'), {
+            title,
+            content: text.trim(),
+            arabicText: text.trim(),
+            category: 'Khassaid',
+            sourceRef: `Khassaid - ${title} - Cheikh Ahmadou Bamba`,
+            language: 'ar',
+            addedAt: Date.now(),
+            addedBy: 'bulk_import'
+          });
+
+          ok++;
+          addLog(`OK: ${title} (${text.length} chars)`, 'ok');
+          document.getElementById('s-ok').textContent = ok;
+        } catch (err) {
+          errors++;
+          addLog(`ERROR: ${title} - ${err.message}`, 'err');
+          document.getElementById('s-err').textContent = errors;
+        }
+      }
+
+      document.getElementById('fill').style.width = '100%';
+      btn.textContent = `Done! ${ok} imported`;
+      addLog(`\n=== COMPLETE: ${ok} imported, ${skip} skipped, ${errors} errors ===`, 'ok');
+    });
+  </script>
+</body>
+</html>

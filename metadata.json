@@ -1,0 +1,7 @@
+{
+  "name": "LAMP AI 2.0",
+  "description": "A voice-first religious AI assistant built with Gemini 2.5 and 3.0, featuring deep theological reasoning and a persistent corpus library.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
