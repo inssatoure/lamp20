@@ -317,37 +317,45 @@ async function getDirectVersesFallback(queryText) {
   try {
     const content = fs.readFileSync(targetFile, 'utf8');
     const lines = content.split('\n').filter(l => l.trim().length > 5);
+    // Each verse = 2 lines (first hemistich + second hemistich)
+    const totalVerses = Math.floor(lines.length / 2);
 
-    // Detect how many verses requested — tolerant regex handles typos like "permir", "premires" etc.
-    // Strategy: find ANY number in the query and treat it as the verse count
-    let limit = 20; // default: return 20 verses so the AI always has full context
-    
-    // Look for pattern: number near verse-related word (even with typos between them)
-    const fullText = lower;
-    const numMatch = fullText.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne)/i);
-    if (numMatch) {
-      limit = Math.min(parseInt(numMatch[1]), 58); // cap at 58 (max lines in corpus)
-    } else {
-      // Fallback: any standalone number in the query
-      const anyNum = fullText.match(/\b(\d+)\b/);
-      if (anyNum) limit = Math.min(parseInt(anyNum[1]), 58);
+    // "tout", "complet", "intégral", "all", "entier" = return full Khassaid
+    const wantAll = /(tout|complet|intégral|intégrale|entier|all|full)/i.test(lower);
+
+    let verseCount = wantAll ? totalVerses : 20; // default 20 verses for AI context
+
+    if (!wantAll) {
+      const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne)/i);
+      if (numMatch) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
+      else {
+        const anyNum = lower.match(/\b(\d+)\b/);
+        if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
+      }
     }
 
-    // General question → return 20 lines for overview context
     const isGeneral = /(parle de|sujet|th[ée]me|about|contenu|sens|signif|d[ée]crit|overview)/i.test(lower);
-    if (isGeneral) limit = Math.max(limit, 20);
+    if (isGeneral && !wantAll) verseCount = Math.min(20, totalVerses);
 
-    const results = lines.slice(0, limit);
-    if (results.length > 0) {
-      const khassaidName = path.basename(targetFile, '.txt').replace(/_/g, ' ');
-      return `\n=== SOURCE DIRECTE: ${khassaidName.toUpperCase()} (${results.length} versets) ===\n` +
-             results.map((l, i) => `[Verset ${i+1}] ${l}`).join('\n');
+    // Build verse pairs: line[i*2] + line[i*2+1]
+    const khassaidName = path.basename(targetFile, '.txt').replace(/_/g, ' ').toUpperCase();
+    const verses = [];
+    for (let i = 0; i < verseCount && (i * 2 + 1) < lines.length; i++) {
+      const h1 = lines[i * 2] || '';
+      const h2 = lines[i * 2 + 1] || '';
+      verses.push(`[Verset ${i + 1}]\n${h1}\n${h2}`);
+    }
+
+    if (verses.length > 0) {
+      return `\n=== SOURCE DIRECTE: ${khassaidName} (${verses.length}/${totalVerses} versets) ===\n` +
+             verses.join('\n');
     }
   } catch (e) {
     console.error('[Fallback] Error reading file:', e.message);
   }
   return null;
 }
+
 
 let _versetsCache = null;
 
@@ -745,7 +753,6 @@ function isVerseRequest(text) {
 async function getDirectCitationResponse(userText, chatId) {
   const lower = userText.toLowerCase();
   
-  // Determine the Khassaid: from current message or from history
   let targetFile = resolveKhassaidFile(lower);
   if (!targetFile) {
     const history = getHistory(chatId);
@@ -758,23 +765,34 @@ async function getDirectCitationResponse(userText, chatId) {
   try {
     const content = fs.readFileSync(targetFile, 'utf8');
     const lines = content.split('\n').filter(l => l.trim().length > 5);
-    
-    // How many verses?
-    let limit = 10;
+    // Each verse = 2 lines (hemistich 1 + hemistich 2)
+    const totalVerses = Math.floor(lines.length / 2);
+
+    // "tout", "complet", "intégral", "all", "entier" = full Khassaid
+    const wantAll = /(tout|complet|intégral|intégrale|entier|all|full)/i.test(lower);
+
+    let verseCount = wantAll ? totalVerses : 10;
     const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne|suiv)/i);
-    if (numMatch) limit = Math.min(parseInt(numMatch[1]), lines.length);
-    else {
+    if (numMatch && !wantAll) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
+    else if (!numMatch && !wantAll) {
       const anyNum = lower.match(/\b(\d+)\b/);
-      if (anyNum) limit = Math.min(parseInt(anyNum[1]), lines.length);
+      if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
     }
 
-    if (/(complet|intégral|intégrale|tout|all|entier)/i.test(lower)) limit = lines.length;
-
     const khassaidName = path.basename(targetFile, '.txt').replace(/_/g, ' ').toUpperCase();
-    const versets = lines.slice(0, limit);
+    
+    // Build numbered verse pairs
+    const verses = [];
+    for (let i = 0; i < verseCount && (i * 2 + 1) < lines.length; i++) {
+      const h1 = lines[i * 2] || '';
+      const h2 = lines[i * 2 + 1] || '';
+      verses.push(`${i + 1}. ${h1}\n   ${h2}`);
+    }
 
-    return `📖 *${khassaidName}* — ${versets.length} versets\n\n` +
-           versets.map((l, i) => `${i+1}. ${l}`).join('\n');
+    if (verses.length === 0) return null;
+
+    return `📖 *${khassaidName}* — ${verses.length}/${totalVerses} versets\n\n` +
+           verses.join('\n\n');
     
   } catch (e) {
     console.error('[DirectCitation] Error:', e.message);
