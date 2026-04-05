@@ -354,11 +354,15 @@ async function getDirectVersesFallback(queryText) {
     let verseCount = wantAll ? totalVerses : 20; // default 20 verses for AI context
 
     if (!wantAll) {
-      const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne)/i);
-      if (numMatch) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
+      // 'le premier vers' = exactly 1 verse
+      if (/\ble\s*premier\b/i.test(lower) || /\b1er\b/i.test(lower)) verseCount = 1;
       else {
-        const anyNum = lower.match(/\b(\d+)\b/);
-        if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
+        const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne)/i);
+        if (numMatch) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
+        else {
+          const anyNum = lower.match(/\b(\d+)\b/);
+          if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
+        }
       }
     }
 
@@ -804,11 +808,15 @@ async function getDirectCitationResponse(userText, chatId) {
     const wantAll = /(tout|complet|intégral|intégrale|entier|all|full)/i.test(lower);
 
     let verseCount = wantAll ? totalVerses : 10;
-    const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne|suiv)/i);
-    if (numMatch && !wantAll) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
-    else if (!numMatch && !wantAll) {
-      const anyNum = lower.match(/\b(\d+)\b/);
-      if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
+    // 'le premier vers' = exactly 1 verse
+    if (/\ble\s*premier\b/i.test(lower) || /\b1er\b/i.test(lower)) verseCount = 1;
+    else {
+      const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne|suiv)/i);
+      if (numMatch && !wantAll) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
+      else {
+        const anyNum = lower.match(/\b(\d+)\b/);
+        if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
+      }
     }
 
     const khassaidName = path.basename(targetFile, '.txt').replace(/_/g, ' ').toUpperCase();
