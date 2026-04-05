@@ -89,6 +89,28 @@ function saveHistoriesToDisk() {
   }, 3000);
 }
 
+// ─── CHAT LOG (Training Data + Dashboard) ─────────────────────────────────────
+// Every interaction saved as JSONL — one line per exchange
+// Format: {"ts":"...","chatId":...,"user":"...","username":"...","bot":"..."}
+
+const CHAT_LOG_FILE = path.join(ROOT_DIR, 'chat_logs.jsonl');
+
+function logInteraction(chatId, username, userText, botText) {
+  try {
+    const entry = JSON.stringify({
+      ts: new Date().toISOString(),
+      chatId,
+      username: username || 'unknown',
+      user: userText,
+      bot: botText,
+    });
+    fs.appendFileSync(CHAT_LOG_FILE, entry + '\n', 'utf-8');
+  } catch (e) {
+    console.warn('[Log] Could not write chat log:', e.message);
+  }
+}
+
+
 function getHistory(chatId) {
   return chatHistories.get(String(chatId)) || [];
 }
@@ -113,29 +135,34 @@ loadHistoriesFromDisk();
 
 // ─── SYSTEM INSTRUCTION ────────────────────────────────────────────────────────
 
-const SYSTEM_INSTRUCTION = `Tu es LAMP AI, un sage Narrateur (Griot/Këbb) de la foi Mouride.
-Tu es un enseignant universel qui parle Wolof, Français et Anglais.
+const SYSTEM_INSTRUCTION = `Tu es LAMP AI — un compagnon spirituel Mouride, savant et humble.
+Tu n'es pas un maître, ni au-dessus des autres. Tu es un frère en quête de connaissance,
+un compagnon de chemin qui partage ce qu'il a appris avec chaleur et respect mutuel.
+Tu parles au même niveau que l'utilisateur. Pas de formules condescendantes.
 
-DÉTECTION DE LANGUE (PRIORITÉ MAXIMALE) :
-Tu ne parles QUE Wolof, Français et Anglais. JAMAIS de Hindi, Chinois, Japonais ou autre langue asiatique.
-1. DÉTECTE la langue de l'utilisateur AVANT de répondre.
-2. WOLOF (par défaut) : Si l'utilisateur parle Wolof (ou un mix Wolof/Français), réponds en Wolof bu koor. Évite les emprunts excessifs au Français.
-3. FRANÇAIS : Si l'utilisateur parle Français, réponds en Français. Garde les termes religieux en Wolof/Arabe (Ndiggel, Barké, Serigne Touba).
-4. ANGLAIS : Si l'utilisateur parle Anglais, réponds en Anglais.
+DÉTECTION DE LANGUE :
+1. WOLOF : Si l'utilisateur parle Wolof ou mix Wolof/Français → réponds en Wolof bu koor.
+2. FRANÇAIS : Réponds en Français, garde les termes religieux en Wolof/Arabe.
+3. ANGLAIS : Si l'utilisateur parle Anglais → réponds en Anglais.
 
-<STRICT_LIBRARIAN_RULES>
-Tu es un BIBLIOTHÉCAIRE STRICT. Tu travailles TOUJOURS depuis les données fournies dans le contexte. JAMAIS de versets inventés.
+<COMPORTEMENT_GENERAL>
+Tu réponds à TOUTES les questions — religieuses, factuelles, générales, ou de la vie courante.
+Ne refuse PAS de répondre sous prétexte d'éviter les hallucinations.
+L'hallucination interdite concerne UNIQUEMENT l'invention de versets arabes de Serigne Touba.
+Pour tout le reste (Islam général, histoire, science, actualité, vie quotidienne) : réponds
+librement et honnêtement avec tout ce que tu sais.
 
-PROCESSUS OBLIGATOIRE pour toute question sur un Khassaid:
-1. Le système t'injecte AUTOMATIQUEMENT le texte des versets depuis la base de données dans la section "=== SOURCE DIRECTE ===" ou "=== VERSETS KHASSAID EXACTS ===".
-2. TU DOIS utiliser ces données pour répondre. Ce sont les textes RÉELS et AUTHENTIQUES.
-3. SI la section SOURCE DIRECTE est présente: cite les versets fournis, numérote-les, explique-les.
-4. SI aucune source n'est fournie dans le contexte: alors seulement, dis que ce Khassaid spécifique n'est pas disponible en ce moment.
+Si tu ne sais pas quelque chose de précis : dis-le en une phrase et donne ce que tu peux.
+</COMPORTEMENT_GENERAL>
 
-RÈGLE ABSOLUE: Ne JAMAIS inventer de l'arabe ou des paroles attribuées à Cheikh Ahmadou Bamba qui ne viennent pas du contexte injecté.
-
-TAILLE DES KHASSAIDS: Si l'utilisateur demande le nombre de versets, cherche dans <KHASSAIDS_METADATA>.
-</STRICT_LIBRARIAN_RULES>
+<KHASSAID_RULES>
+Pour les Khassaids de Cheikh Ahmadou Bamba UNIQUEMENT :
+1. Le système injecte automatiquement les versets réels dans "=== SOURCE DIRECTE ===".
+2. TU DOIS utiliser ces versets injectés. Ce sont des textes authentiques du corpus.
+3. Ne JAMAIS inventer de l'arabe ou fabriquer des paroles de Serigne Touba de mémoire.
+4. Si aucun verset n'est injecté pour un Khassaid : dis-le en une phrase courte.
+5. Pour le nombre de versets : cherche dans <KHASSAIDS_METADATA>.
+</KHASSAID_RULES>
 
 <CITATIONS_PRECISES>
 - Coran : cite Sourate + Ayah (ex: "Al-Baqara 2:255")
@@ -143,6 +170,7 @@ TAILLE DES KHASSAIDS: Si l'utilisateur demande le nombre de versets, cherche dan
 - Hadith : cite collection + numéro (ex: "Sahih Bukhari #6018")
 </CITATIONS_PRECISES>
 `;
+
 
 const KHASSAIDS_METADATA = `LISTE DES 122 KHASSAIDS ET LEUR NOMBRE DE VERSETS:
 Ahazanil Baaqi (25 versets), Ahuzu Bil Laahi Min Mayli (24), Ahyaytu Mawlidan (18), Ajabani Khayru Baaqin (6), Ajabani Rabbus Sama (78), Alaa Inani (26), Alal Mustafa Minni (10), Alhamdu Yujaazi (21), Allaahu Hayyun Samadun (4), Anta Rabbi (27), Ashaabul Jannati (24), Ashinu (42), Ashkuru Laaha (12), Asiru (56), Asma Ul Husna (40), Astaghfirulaha Bihi (12), Ataaba (116), Ayyasa (23), Bakh Bakhaa (26), Barakatu (20), Bihaqqi (7), Bismil Ilaahil Lazi (20), Bismil Laahi Ikfini (101), Bushra Lana (25), Faaqa Jamiha (12), Farrij (15), Fazal Lazina (17), Fazat Qilami (14), Fuzti (24), Hajat Qasa Idi (33), Halal Muntaqa (20), Halaman (36), Halayka Yaa Mukhtaru (11), Hamdi Wa Shukri (4), Hamidtu (19), Hammat Sulaymaa (115), Huqqal Bukaa (78), Ihdi Jamihana (6), Ilaa Ghayrinaa (24), Ilaa Nabiyyin (13), Inani Huztu (59), Innabna Laahi (24), Inni Ukhatibu (15), Innii Aquulu (19), Inniya Ahmadu (43), Jalibatul Maraghibi (533), Jawartu (29), Jazbu (185), Kafaaka Rabbuka (3), Kawin Liya (37), Khatimatu Munajati (39), Khayra Dayfin (14), Kun Katiman (8), Lamyabdu (12), Lil Mustafa Nawaytu (28), Lirabbin Ghafurin (44), Lirabbin Kariimin (17), Liyan Qaada (12), Madahtu Nabiyyal Muntaqa (12), Madal Khabiru (24), Madhun Nabiyyil Muntaqa (12), Mafatihul Bishri (374), Mafatihul Jinan (168), Mahaa Huyuubii (12), Man Zanani (15), Maramiya (5), Matlabul Fawzayni (236), Matlabushiffa (55), Matlabut Taqabbuli (60), Mawahibu (166), Midadi (66), Miftahun Nasri (15), Mim Ra Shin (3), Mimiya (150), Minal Haqqi (10), Minal Lawhil Mahfuzi (14), Minanul Baaqil Qadiim (217), Mulkul Lazii (10), Mumitu (14), Muqadamatul Amdah (192), Nuuru Daarayni (1517), Qalu Liyarkan (10), Raa Iya (117), Rabbi Karrimun (19), Rabbiya Ahmadu (28), Raditu (72), Rafahnaa (12), Rumna Shukur (89), Sabhun Taqii (30), Safar (12), Safaru Bamsashin (12), Salaatu Rahiimin (12), Sana Ilaahi (5), Shakawtu (13), Shakuru Rafihu (8), Sindidi (50), Takhmiisi (102), Tawbatun Nasuuh (106), Taysirul Hasiru (295), Tuhfatu Mutadarihin (58), Wa Kaana Haqqan (152), Wadudu (22), Waduuhu (16), Wajjahtu Hamdan (16), Wajjahtu Kulliya (25), Wajjahtu Wajhii (38), Wajjahtu Wajhiya (25), Wal Baladu (30), Walaqad Karamna (86), Waqani (17), Wawassaynal (25), Yaa Jumlatan (50), Yaa Kitaabal Kariimi (17), Yaa Mukrima Dayfi (14), Yaa Rakhmanu (9), Yaa Zal Busharati (61), Yaa Zal Wujuudi (12), Yaqini (16), Yarabbi (7), Yassara (12), Yasurru (12), Zallat (9).`;
@@ -557,17 +585,21 @@ async function getAIResponse(userText, chatId) {
     ? [...history, { role: 'user', parts: [{ text: userText }] }]
     : userText;
 
-  // Step 1: Generate in French (most accurate for religious content)
-  const frInstruction = fullInstruction + `\n\nIMPORTANT: Réponds en FRANÇAIS. Inclus les références Khassaid et Coran du contexte bibliothèque.`;
+  // Step 1: Generate in French with Google Search grounding for factual questions
+  const frInstruction = fullInstruction + `\n\nIMPORTANT: Réponds en FRANÇAIS. Inclus les références Khassaid et Coran du contexte bibliothèque. Pour les questions générales ou factuelles, utilise toutes tes connaissances disponibles et réponds complètement.`;
 
   console.log(`[Debug] Calling generateContent (French) for text: ${userText.substring(0, 30)}`);
   const frResponse = await ai.models.generateContent({
     model: CHAT_MODEL,
     contents,
-    config: { systemInstruction: frInstruction, temperature: 0.7 },
+    config: {
+      systemInstruction: frInstruction,
+      temperature: 0.7,
+      tools: [{ googleSearch: {} }],  // Google Search grounding for factual queries
+    },
   });
   console.log(`[Debug] generateContent returned properly.`);
-  const frText = frResponse.text || "...";
+  const frText = frResponse.text || '...';
 
   // Step 2: If user writes Wolof, translate to pure Wolof
   if (userWantsWolof) {
@@ -826,6 +858,8 @@ bot.on('message', async (msg) => {
 
     addToHistory(chatId, 'user', msg.text);
     addToHistory(chatId, 'model', aiResponse);
+    logInteraction(chatId, msg.from?.username || msg.from?.first_name, msg.text, aiResponse);
+
 
     await bot.sendMessage(chatId, aiResponse, { parse_mode: 'Markdown' }).catch(() =>
       bot.sendMessage(chatId, aiResponse) // fallback without markdown if parse fails
