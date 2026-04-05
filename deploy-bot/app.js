@@ -33,8 +33,8 @@ if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
   process.exit(1);
 }
 
-const CHAT_MODEL = 'gemini-2.5-flash';
-const TTS_MODEL  = 'gemini-2.5-flash-preview-tts';
+const CHAT_MODEL = 'gemini-1.5-flash';
+const TTS_MODEL  = 'gemini-1.5-flash';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAWcGI0OZsHPh-IhglG_4MI9ZcQkkmUKw0",
