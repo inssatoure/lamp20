@@ -39,24 +39,31 @@ if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
 const CHAT_MODEL = 'gemini-3.8-flash';
 const TTS_MODEL  = 'gemini-3.8-flash-tts';
 const FALLBACK_MODEL = 'gemini-3.6-flash';
+const LITE_MODEL     = 'gemini-3.5-flash-lite'; // cheap model for understanding + verification
 
 // Retry on overload (503/429), then switch to the backup model
 async function generateChat(params) {
-  for (const model of [params.model, params.model, FALLBACK_MODEL]) {
-    try {
-      return await ai.models.generateContent({ ...params, model });
-    } catch (err) {
-      const msg = String(err?.message || err);
-      // Free keys often have no Google Search quota: drop the tool and retry
-      if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg) && params.config?.tools) {
-        console.warn('[LAMP Bot] Search tool quota hit, retrying without Google Search');
-        const { tools, ...rest } = params.config;
-        params = { ...params, config: rest };
-        try { return await ai.models.generateContent({ ...params, model }); } catch (e2) { err = e2; }
+  // Chain: requested model -> 3.6 flash -> 3.5 flash-lite (each has its own free quota)
+  const chain = [...new Set([params.model, FALLBACK_MODEL, LITE_MODEL])];
+  for (const model of chain) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await ai.models.generateContent({ ...params, model });
+      } catch (err) {
+        const msg = String(err?.message || err);
+        const quota = /429|RESOURCE_EXHAUSTED|quota/i.test(msg);
+        // Free keys often have no Google Search quota: drop the tool and retry
+        if (quota && params.config?.tools) {
+          console.warn('[LAMP Bot] Search tool quota hit, retrying without Google Search');
+          const { tools, ...rest } = params.config;
+          params = { ...params, config: rest };
+          continue;
+        }
+        if (quota) { console.warn(`[LAMP Bot] ${model} quota exhausted, next model`); break; }
+        if (!/503|UNAVAILABLE|overloaded|high demand|500|INTERNAL/i.test(msg)) throw err;
+        console.warn(`[LAMP Bot] ${model} busy, retrying...`);
+        await new Promise(r => setTimeout(r, 2500));
       }
-      if (!/503|429|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand/i.test(msg)) throw err;
-      console.warn(`[LAMP Bot] ${model} busy, retrying...`);
-      await new Promise(r => setTimeout(r, 3000));
     }
   }
   // Last resort: Groq (free, fast) when GROQ_API_KEY is set — text only
@@ -647,7 +654,7 @@ async function understandMessage(userText, history) {
   try {
     const hist = history.length ? `Historique récent :\n${historyAsText(history)}\n\n` : '';
     const r = await generateChat({
-      model: CHAT_MODEL,
+      model: LITE_MODEL,
       contents: `${hist}Nouveau message : "${userText}"
 
 Analyse ce message dans le contexte de la conversation :
@@ -677,7 +684,7 @@ async function verifyOnTopic(question, topic, answer) {
   if (!answer) return false;
   try {
     const r = await generateChat({
-      model: CHAT_MODEL,
+      model: LITE_MODEL,
       contents: `QUESTION : ${question}\nSUJET : ${topic || '-'}\nRÉPONSE : ${answer.slice(0, 1500)}\n\nLa RÉPONSE répond-elle vraiment à la QUESTION, sans inventer de citation ? Réponds UNIQUEMENT "oui" ou "non".`,
       config: { temperature: 0 },
     });
