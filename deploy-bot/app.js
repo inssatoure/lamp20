@@ -59,7 +59,43 @@ async function generateChat(params) {
       await new Promise(r => setTimeout(r, 3000));
     }
   }
+  // Last resort: Groq (free, fast) when GROQ_API_KEY is set — text only
+  if (process.env.GROQ_API_KEY) {
+    const text = await groqChat(params);
+    if (text) return { text };
+  }
   throw new Error('All Gemini models busy');
+}
+
+const GROQ_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'];
+
+async function groqChat(params) {
+  const messages = [];
+  const sys = params.config?.systemInstruction;
+  if (sys) messages.push({ role: 'system', content: String(sys) });
+  if (typeof params.contents === 'string') messages.push({ role: 'user', content: params.contents });
+  else if (Array.isArray(params.contents)) {
+    for (const m of params.contents) {
+      const t = (m.parts || []).map(p => p.text || '').join('\n');
+      if (t) messages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: t });
+    }
+  } else return '';  // audio / multimodal: Groq can't take it
+  const json = params.config?.responseMimeType === 'application/json';
+  for (const model of GROQ_MODELS) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, temperature: params.config?.temperature ?? 0.4,
+          ...(json ? { response_format: { type: 'json_object' } } : {}) }),
+      });
+      if (!res.ok) { console.warn(`[Groq] ${model} ${res.status}`); continue; }
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      if (text) { console.warn(`[Groq] answered with ${model}`); return text; }
+    } catch (e) { console.warn(`[Groq] ${model} error:`, e.message); }
+  }
+  return '';
 }
 
 const firebaseConfig = {
@@ -191,9 +227,13 @@ Pour les Khassaids de Cheikh Ahmadou Bamba UNIQUEMENT :
 </KHASSAID_RULES>
 
 <CITATIONS_PRECISES>
-- Coran : cite Sourate + Ayah (ex: "Al-Baqara 2:255")
-- Khassaid : cite titre + verset si disponible (ex: "[Mafatihul Bishri, Verset 12]")
-- Hadith : cite collection + numéro (ex: "Sahih Bukhari #6018")
+- Quand un texte est fourni dans le contexte (SOURCE DIRECTE / VERSETS / CONTEXTE_RAG) :
+  cite-le MOT POUR MOT entre guillemets, avec sa référence, PUIS explique simplement.
+- Coran : Sourate + numéro d'Ayah seulement si tu es CERTAIN du numéro. Sinon nomme la sourate sans numéro.
+- Khassaid : titre + numéro de verset seulement s'il vient du contexte fourni.
+- Hadith : donne le sens et le nom de la collection (Bukhari, Muslim…).
+  N'INVENTE JAMAIS un numéro de hadith. Si tu n'es pas sûr qu'un hadith existe, dis "on rapporte que…" ou ne le cite pas.
+- N'invente JAMAIS une date, un chiffre, un nombre de versets ou une citation. Si tu ne sais pas : dis-le en une phrase.
 </CITATIONS_PRECISES>
 `;
 
@@ -586,15 +626,78 @@ function extractLastKhassaidFromHistory(history) {
   return null;
 }
 
+// ─── UNDERSTANDING (from SAMADROIT) ────────────────────────────────────────────
+// One fast call reads the message + history and returns: answer language,
+// a standalone question (resolves follow-ups like "explique le premier vers"),
+// the precise topic and the Khassaid concerned.
+
+function historyAsText(history, max = 6) {
+  return history.slice(-max)
+    .map(m => `${m.role === 'user' ? 'Utilisateur' : 'LAMP'}: ${(m.parts?.[0]?.text || '').slice(0, 400)}`)
+    .join('\n');
+}
+
+function parseJson(raw) {
+  const s = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  return JSON.parse(s);
+}
+
+async function understandMessage(userText, history) {
+  const fallback = { lang: isWolof(userText) ? 'wo' : 'fr', question: userText, topic: '', khassaid: '' };
+  try {
+    const hist = history.length ? `Historique récent :\n${historyAsText(history)}\n\n` : '';
+    const r = await generateChat({
+      model: CHAT_MODEL,
+      contents: `${hist}Nouveau message : "${userText}"
+
+Analyse ce message dans le contexte de la conversation :
+1. lang : langue voulue pour LA RÉPONSE. "wo" si le message est écrit en wolof OU demande une réponse en wolof. "en" si en anglais. Sinon "fr". Attention : "Serigne Touba", "Khassaid", "Mouride" sont des noms propres, pas du wolof.
+2. question : la question reformulée en français, claire et AUTONOME. Si c'est une suite ("explique le premier vers", "et pour la prière ?"), reconstruis la vraie question grâce à l'historique.
+3. topic : le sujet précis en 3 à 7 mots.
+4. khassaid : le titre du Khassaid concerné (dans le message ou l'historique), sinon "".
+
+Réponds UNIQUEMENT en JSON : {"lang":"fr|wo|en","question":"...","topic":"...","khassaid":"..."}`,
+      config: { temperature: 0.1, responseMimeType: 'application/json' },
+    });
+    const o = parseJson(r.text);
+    return {
+      lang: ['wo', 'en', 'fr'].includes(o.lang) ? o.lang : fallback.lang,
+      question: (o.question || userText).trim(),
+      topic: (o.topic || '').trim(),
+      khassaid: (o.khassaid || '').trim(),
+    };
+  } catch (e) {
+    console.warn('[Understand] fallback:', e.message);
+    return fallback;
+  }
+}
+
+// ─── ON-TOPIC VERIFIER (from SAMADROIT) ────────────────────────────────────────
+async function verifyOnTopic(question, topic, answer) {
+  if (!answer) return false;
+  try {
+    const r = await generateChat({
+      model: CHAT_MODEL,
+      contents: `QUESTION : ${question}\nSUJET : ${topic || '-'}\nRÉPONSE : ${answer.slice(0, 1500)}\n\nLa RÉPONSE répond-elle vraiment à la QUESTION, sans inventer de citation ? Réponds UNIQUEMENT "oui" ou "non".`,
+      config: { temperature: 0 },
+    });
+    return !/^\s*non/i.test(r.text || '');
+  } catch {
+    return true; // never block an answer because the verifier failed
+  }
+}
+
 async function getAIResponse(userText, chatId) {
   const history = getHistory(chatId);
+  const u = await understandMessage(userText, history);
+  console.log(`[Understand] lang=${u.lang} topic="${u.topic}" khassaid="${u.khassaid}" q="${u.question.slice(0, 80)}"`);
 
-  // If current message has no Khassaid name, enrich with last mentioned Khassaid from history
-  let searchQuery = userText;
-  if (!resolveKhassaidFile(userText.toLowerCase())) {
+  // Retrieval uses the standalone question (+ Khassaid), not the raw follow-up
+  let searchQuery = [u.question, u.khassaid].filter(Boolean).join(' ');
+  if (!resolveKhassaidFile(searchQuery.toLowerCase())) {
     const lastKhassaid = extractLastKhassaidFromHistory(history);
     if (lastKhassaid) {
-      searchQuery = `${userText} ${lastKhassaid}`;
+      searchQuery = `${searchQuery} ${lastKhassaid}`;
       console.log(`[Context] Enriched query with history Khassaid: "${lastKhassaid}"`);
     }
   }
@@ -609,7 +712,7 @@ async function getAIResponse(userText, chatId) {
   fullInstruction += `\n\n<KHASSAIDS_METADATA>\n${KHASSAIDS_METADATA}\n</KHASSAIDS_METADATA>`;
   fullInstruction += `\n\n<CONTEXTE_RAG>\n${corpusContext || "Aucun résultat trouvé."}\n</CONTEXTE_RAG>`;
 
-  const userWantsWolof = isWolof(userText);
+  const userWantsWolof = u.lang === 'wo';
 
   // Build multi-turn contents: history + current user message
   const contents = history.length > 0
@@ -617,7 +720,7 @@ async function getAIResponse(userText, chatId) {
     : userText;
 
   // Step 1: Generate in French with Google Search grounding for factual questions
-  const frInstruction = fullInstruction + `\n\nIMPORTANT: Réponds en FRANÇAIS. Inclus les références Khassaid et Coran du contexte bibliothèque. Pour les questions générales ou factuelles, utilise toutes tes connaissances disponibles et réponds complètement.`;
+  const frInstruction = fullInstruction + `\n\nIMPORTANT: Réponds en ${u.lang === 'en' ? 'ANGLAIS' : 'FRANÇAIS'}. Question comprise : "${u.question}" (sujet : ${u.topic || '-'}). Réponds précisément à CETTE question. Si le contexte bibliothèque contient le texte demandé, cite-le mot pour mot avant d'expliquer. Ne fabrique aucune citation.`;
 
   console.log(`[Debug] Calling generateContent (French) for text: ${userText.substring(0, 30)}`);
   const frResponse = await generateChat({
@@ -625,12 +728,26 @@ async function getAIResponse(userText, chatId) {
     contents,
     config: {
       systemInstruction: frInstruction,
-      temperature: 0.7,
+      temperature: 0.4,
       tools: [{ googleSearch: {} }],  // Google Search grounding for factual queries
     },
   });
   console.log(`[Debug] generateContent returned properly.`);
-  const frText = frResponse.text || '...';
+  let frText = frResponse.text || '...';
+
+  // Verifier: if the answer drifts off-topic, regenerate once with a sharper instruction
+  if (!(await verifyOnTopic(u.question, u.topic, frText))) {
+    console.warn(`[Verify] Off-topic answer for "${u.question.slice(0, 60)}" — regenerating`);
+    const retry = await generateChat({
+      model: CHAT_MODEL,
+      contents,
+      config: {
+        systemInstruction: frInstruction + `\n\nTa réponse précédente ne répondait pas à la question. Réponds UNIQUEMENT à : "${u.question}". Si tu ne sais pas, dis-le en une phrase.`,
+        temperature: 0.2,
+      },
+    });
+    if (retry.text) frText = retry.text;
+  }
 
   // Step 2: If user writes Wolof, translate to pure Wolof
   if (userWantsWolof) {
