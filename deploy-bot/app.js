@@ -20,7 +20,10 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 
-const ROOT_DIR = '/home/metawbms/lamp.metafrik.com';
+// Data folder: LAMP_ROOT_DIR env var, else the old cPanel path if present, else the repo root
+const SERVER_DIR = '/home/metawbms/lamp.metafrik.com';
+const REPO_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT_DIR = process.env.LAMP_ROOT_DIR || (fs.existsSync(SERVER_DIR) ? SERVER_DIR : REPO_DIR);
 const TEXTES_DIR = path.join(ROOT_DIR, 'Textes_Arabes_Serigne_Touba');
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────────

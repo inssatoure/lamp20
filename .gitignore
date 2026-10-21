@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# LAMP bot runtime data
+versets_cache.jsonl
+chat_histories.json
+chat_logs.jsonl
