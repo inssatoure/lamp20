@@ -19,8 +19,8 @@ pkill -9 -f "node.*app.js" 2>/dev/null
 sleep 2
 
 echo "🚀 Starting LAMP AI Bot..."
-export TELEGRAM_TOKEN="8718768067:AAGKmBVB67nK6feFZn8Arv3cuySBLpfmW9A"
-export GEMINI_API_KEY="AIzaSyC2RHHJy4PkNOYfHWQrbucLOrDZFg0YY3o"
+# Keys are read by the bot from $APP_DIR/.env (see .env.example) — never write them here
+mkdir -p "$APP_DIR/logs"
 
 nohup $NODE $APP_DIR/app.js > $LOGFILE 2>&1 &
 echo $! > "$PIDFILE"

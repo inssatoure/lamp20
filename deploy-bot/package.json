@@ -11,5 +11,8 @@
     "firebase": "^12.6.0",
     "node-fetch": "^3.0.0",
     "node-telegram-bot-api": "^0.66.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

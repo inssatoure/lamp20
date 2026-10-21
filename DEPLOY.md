@@ -26,48 +26,30 @@ scp -P 21098 -r dist/* ton_user@server358.web-hosting.com:~/public_html/
 
 ## 2. Bot Telegram (Node.js)
 
-Le dossier `deploy-bot/` contient le bot Telegram autonome.
+Le bot est dans `deploy-bot/` — voir **`deploy-bot/README.md`** pour son fonctionnement.
 
-### Déploiement sur Namecheap cPanel :
+### Installation sur le serveur (cPanel, dossier `~/lamp.metafrik.com`)
+1. Copier dans le dossier : `deploy-bot/app.js`, `deploy-bot/lib/`, `deploy-bot/package.json`,
+   `deploy-bot/.env.example`, `deploy-bot/start.sh`, et le dossier `scripts/`
+   (le dossier `Textes_Arabes_Serigne_Touba/` doit aussi y être).
+2. `cp .env.example .env` puis remplir `TELEGRAM_TOKEN`, `GEMINI_API_KEY` (et `GROQ_API_KEY` si possible).
+3. `npm install`
+4. `node scripts/fetch-sources.mjs` (Coran + hadiths → `sources/`)
+5. Si `versets_cache.jsonl` est absent : `node scripts/cache_vectors.mjs`
+6. Démarrer : `bash start.sh` (ou `pm2_setup.sh`, ou cPanel > Setup Node.js App > startup file `app.js`)
 
-#### Étape 1 — Upload des fichiers
-1. Via **File Manager**, crée un dossier `lamp-bot` dans ton répertoire home (`~/`)
-2. Upload les fichiers du dossier `deploy-bot/` dans `~/lamp-bot/` :
-   - `app.js`
-   - `package.json`
-   - `.env`
+### Vérifier
+- Les journaux affichent `[LAMP] Started — polling Telegram as @Lamp_ai_bot`
+- Envoyer `/start` au bot
 
-#### Étape 2 — Configurer Node.js App dans cPanel
-1. Va dans **cPanel > Setup Node.js App**
-2. Clique **Create Application**
-3. Configuration :
-   - **Node.js version** : la plus récente disponible (18+ recommandé)
-   - **Application mode** : Production
-   - **Application root** : `lamp-bot`
-   - **Application URL** : (laisse vide ou mets un sous-domaine inutilisé)
-   - **Application startup file** : `app.js`
-4. Clique **Create**
-
-#### Étape 3 — Installer les dépendances
-1. Dans la page de l'app Node.js, clique **"Run NPM Install"**
-2. Attends que ça finisse
-
-#### Étape 4 — Démarrer le bot
-1. Clique **"Start App"**
-2. Le bot est maintenant actif sur `t.me/aboridialbot`
-
-#### Vérifier que ça marche :
-- Va sur Telegram, envoie `/start` à @aboridialbot
-- Le bot devrait répondre
-
-#### Redémarrer le bot :
-- cPanel > Setup Node.js App > ton app > **Restart**
+### Erreur « 409 Conflict » dans les journaux
+Deux programmes utilisent le même token (ancien serveur, pm2, ordinateur local). En arrêter un.
 
 ---
 
 ## 3. Notes importantes
 
-- **Clés API** : Les clés sont dans `deploy-bot/.env` et dans le build web. En production, tu devrais les protéger.
+- **Clés API** : uniquement dans le fichier `.env` du serveur (jamais dans GitHub). Les anciennes clés publiées sur GitHub doivent être changées.
 - **Firestore Rules** : Assure-toi que les règles Firestore permettent la lecture/écriture :
   ```
   rules_version = '2';

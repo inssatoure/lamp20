@@ -27,3 +27,5 @@ dist-ssr
 versets_cache.jsonl
 chat_histories.json
 chat_logs.jsonl
+sources/
+deploy-bot/.env

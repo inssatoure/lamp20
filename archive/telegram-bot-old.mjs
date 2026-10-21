@@ -17,7 +17,7 @@ import http from 'http';
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────────
 
-const TELEGRAM_TOKEN = '8718768067:AAGKmBVB67nK6feFZn8Arv3cuySBLpfmW9A';
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GEMINI_API_KEY = 'AIzaSyCfBSOJw5i2ajEBHhZB4KKGadBxAKP9wj8';
 
 const CHAT_MODEL = 'gemini-3.8-flash';

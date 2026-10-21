@@ -4,8 +4,7 @@ pkill -9 -f 'node.*app.js' 2>/dev/null
 sleep 2
 /home/metawbms/node_modules/.bin/pm2 delete lamp-bot 2>/dev/null
 sleep 1
-TELEGRAM_TOKEN='8718768067:AAGKmBVB67nK6feFZn8Arv3cuySBLpfmW9A' \
-GEMINI_API_KEY='AIzaSyC2RHHJy4PkNOYfHWQrbucLOrDZFg0YY3o' \
+# Keys are read by the bot from /home/metawbms/lamp.metafrik.com/.env — never write them here
 /home/metawbms/node_modules/.bin/pm2 start /home/metawbms/lamp.metafrik.com/app.js \
   --name lamp-bot \
   --interpreter /opt/alt/alt-nodejs20/root/usr/bin/node \

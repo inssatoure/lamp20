@@ -1,1117 +1,216 @@
 /**
- * LAMP AI — Telegram Bot (Railway Persistent Server)
- * Uses polling mode — no webhook URL needed.
- * Deploy: set Root Directory = deploy-bot in Railway settings.
- * Env vars required: TELEGRAM_TOKEN, GEMINI_API_KEY
+ * LAMP AI — Telegram bot (polling, no webhook needed)
+ * Start:   node app.js        Env: TELEGRAM_TOKEN, GEMINI_API_KEY  (optional: GROQ_API_KEY, LAMP_ROOT_DIR)
+ *
+ * This file only talks to Telegram. The rest lives in lib/:
+ *   brain.js   understand → sources → answer → check references
+ *   sources.js Coran, hadiths, Khassaids (verified texts only)
+ *   prompt.js  who LAMP is and its rules
+ *   ai.js      model calls with timeout and fallback
+ *   voice.js   voice replies · history.js memory · telegram-format.js safe messages
  */
-
-import fetch, { Headers, Request, Response } from 'node-fetch';
-globalThis.fetch = fetch;
-globalThis.Headers = Headers;
-globalThis.Request = Request;
-globalThis.Response = Response;
-
 import TelegramBot from 'node-telegram-bot-api';
-import { GoogleGenAI, Modality } from '@google/genai';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, where } from 'firebase/firestore/lite';
-import https from 'https';
-import http from 'http';
-import fs from 'fs';
-import path from 'path';
-
-// Data folder: LAMP_ROOT_DIR env var, else the old cPanel path if present, else the repo root
-const SERVER_DIR = '/home/metawbms/lamp.metafrik.com';
-const REPO_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const ROOT_DIR = process.env.LAMP_ROOT_DIR || (fs.existsSync(SERVER_DIR) ? SERVER_DIR : REPO_DIR);
-const TEXTES_DIR = path.join(ROOT_DIR, 'Textes_Arabes_Serigne_Touba');
-
-// ─── CONFIG ────────────────────────────────────────────────────────────────────
-
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+import { TELEGRAM_TOKEN, GEMINI_API_KEY, VOICE_REPLY } from './lib/config.js';
 
 if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
-  console.error('[LAMP Bot] Missing env vars: TELEGRAM_TOKEN or GEMINI_API_KEY');
+  console.error('[LAMP] Missing env vars: TELEGRAM_TOKEN and GEMINI_API_KEY are required');
   process.exit(1);
 }
 
-const CHAT_MODEL = 'gemini-3.8-flash';
-const TTS_MODEL  = 'gemini-3.8-flash-tts';
-const FALLBACK_MODEL = 'gemini-3.6-flash';
-const LITE_MODEL     = 'gemini-3.5-flash-lite'; // cheap model for understanding + verification
+const { answer, transcribe } = await import('./lib/brain.js');
+const { warmUp, listKhassaids } = await import('./lib/sources.js');
+const { getHistory, addExchange, clearHistory, activeChats, logInteraction } = await import('./lib/history.js');
+const { toTelegramHtml, toPlain, splitMessage } = await import('./lib/telegram-format.js');
+const { speak } = await import('./lib/voice.js');
 
-// Retry on overload (503/429), then switch to the backup model
-async function generateChat(params) {
-  // Chain: requested model -> 3.6 flash -> 3.5 flash-lite (each has its own free quota)
-  const chain = [...new Set([params.model, FALLBACK_MODEL, LITE_MODEL])];
-  for (const model of chain) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        return await ai.models.generateContent({ ...params, model });
-      } catch (err) {
-        const msg = String(err?.message || err);
-        const quota = /429|RESOURCE_EXHAUSTED|quota/i.test(msg);
-        // Free keys often have no Google Search quota: drop the tool and retry
-        if (quota && params.config?.tools) {
-          console.warn('[LAMP Bot] Search tool quota hit, retrying without Google Search');
-          const { tools, ...rest } = params.config;
-          params = { ...params, config: rest };
-          continue;
-        }
-        if (quota) { console.warn(`[LAMP Bot] ${model} quota exhausted, next model`); break; }
-        if (!/503|UNAVAILABLE|overloaded|high demand|500|INTERNAL/i.test(msg)) throw err;
-        console.warn(`[LAMP Bot] ${model} busy, retrying...`);
-        await new Promise(r => setTimeout(r, 2500));
-      }
-    }
+// ─── never die on an unexpected error ────────────────────────────────────────
+process.on('unhandledRejection', (e) => console.error('[LAMP] unhandled rejection:', e?.message || e));
+process.on('uncaughtException', (e) => console.error('[LAMP] uncaught exception:', e?.message || e));
+
+warmUp();
+const STARTED = Math.floor(Date.now() / 1000);
+const bot = new TelegramBot(TELEGRAM_TOKEN, {
+  polling: { interval: 1000, autoStart: false, params: { timeout: 30, allowed_updates: ['message'] } },
+});
+// Started at the END of this file, once every handler is registered (no message lost).
+
+// ─── polling health ──────────────────────────────────────────────────────────
+let restarting = false;
+bot.on('polling_error', async (err) => {
+  const msg = err?.message || String(err);
+  if (/409|Conflict/i.test(msg)) {
+    console.error('[LAMP] 409 Conflict: another copy of this bot is running with the same token. Stop it (old server, pm2, cPanel).');
+    return;
   }
-  // Last resort: Groq (free, fast) when GROQ_API_KEY is set — text only
-  if (process.env.GROQ_API_KEY) {
-    const text = await groqChat(params);
-    if (text) return { text };
+  if (/401|Unauthorized/i.test(msg)) {
+    console.error('[LAMP] 401: TELEGRAM_TOKEN is invalid or revoked. Exiting.');
+    process.exit(1);
   }
-  throw new Error('All Gemini models busy');
-}
-
-const GROQ_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'];
-
-async function groqChat(params) {
-  const messages = [];
-  const sys = params.config?.systemInstruction;
-  if (sys) messages.push({ role: 'system', content: String(sys) });
-  if (typeof params.contents === 'string') messages.push({ role: 'user', content: params.contents });
-  else if (Array.isArray(params.contents)) {
-    for (const m of params.contents) {
-      const t = (m.parts || []).map(p => p.text || '').join('\n');
-      if (t) messages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: t });
-    }
-  } else return '';  // audio / multimodal: Groq can't take it
-  const json = params.config?.responseMimeType === 'application/json';
-  for (const model of GROQ_MODELS) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, temperature: params.config?.temperature ?? 0.4,
-          ...(json ? { response_format: { type: 'json_object' } } : {}) }),
-      });
-      if (!res.ok) { console.warn(`[Groq] ${model} ${res.status}`); continue; }
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || '';
-      if (text) { console.warn(`[Groq] answered with ${model}`); return text; }
-    } catch (e) { console.warn(`[Groq] ${model} error:`, e.message); }
+  console.warn('[LAMP] polling error:', msg.slice(0, 160));
+  if (/EFATAL/i.test(msg) && !restarting) {          // network drop: restart polling cleanly
+    restarting = true;
+    try { await bot.stopPolling({ cancel: true }); } catch { /* ignore */ }
+    setTimeout(async () => {
+      try { await bot.startPolling({ restart: true }); console.log('[LAMP] polling restarted'); } catch (e) { console.error('[LAMP] restart failed:', e.message); }
+      restarting = false;
+    }, 5000);
   }
-  return '';
-}
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAWcGI0OZsHPh-IhglG_4MI9ZcQkkmUKw0",
-  authDomain: "lampridial-19466.firebaseapp.com",
-  projectId: "lampridial-19466",
-};
-
-// ─── INIT ──────────────────────────────────────────────────────────────────────
-
-const fbApp = initializeApp(firebaseConfig);
-const db    = getFirestore(fbApp);
-const ai    = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-const bot   = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-
-console.log('[LAMP Bot] Started — polling for messages...');
-
-// ─── PERSISTENT CONVERSATION HISTORY ──────────────────────────────────────────
-// Saved to disk so history survives bot restarts (crashes, updates, reboots)
-
-const HISTORY_FILE = path.join(ROOT_DIR, 'chat_histories.json');
-const chatHistories = new Map();
-
-// Load histories from disk on startup
-function loadHistoriesFromDisk() {
-  try {
-    if (fs.existsSync(HISTORY_FILE)) {
-      const raw = fs.readFileSync(HISTORY_FILE, 'utf-8');
-      const data = JSON.parse(raw);
-      for (const [chatId, history] of Object.entries(data)) {
-        chatHistories.set(chatId, history);
-      }
-      console.log(`[History] Loaded ${chatHistories.size} conversations from disk.`);
-    }
-  } catch (e) {
-    console.warn('[History] Could not load histories:', e.message);
-  }
-}
-
-// Save all histories to disk (debounced - max once per 3s)
-let _saveTimer = null;
-function saveHistoriesToDisk() {
-  if (_saveTimer) return;
-  _saveTimer = setTimeout(() => {
-    try {
-      const obj = {};
-      for (const [k, v] of chatHistories.entries()) obj[k] = v;
-      fs.writeFileSync(HISTORY_FILE, JSON.stringify(obj), 'utf-8');
-    } catch (e) {
-      console.warn('[History] Could not save histories:', e.message);
-    }
-    _saveTimer = null;
-  }, 3000);
-}
-
-// ─── CHAT LOG (Training Data + Dashboard) ─────────────────────────────────────
-// Every interaction saved as JSONL — one line per exchange
-// Format: {"ts":"...","chatId":...,"user":"...","username":"...","bot":"..."}
-
-const CHAT_LOG_FILE = path.join(ROOT_DIR, 'chat_logs.jsonl');
-
-function logInteraction(chatId, username, userText, botText) {
-  try {
-    const entry = JSON.stringify({
-      ts: new Date().toISOString(),
-      chatId,
-      username: username || 'unknown',
-      user: userText,
-      bot: botText,
-    });
-    fs.appendFileSync(CHAT_LOG_FILE, entry + '\n', 'utf-8');
-  } catch (e) {
-    console.warn('[Log] Could not write chat log:', e.message);
-  }
-}
-
-
-function getHistory(chatId) {
-  return chatHistories.get(String(chatId)) || [];
-}
-
-function addToHistory(chatId, role, text) {
-  const key = String(chatId);
-  const history = chatHistories.get(key) || [];
-  history.push({ role, parts: [{ text }] });
-  // Keep last 30 messages (15 turns)
-  if (history.length > 30) history.splice(0, history.length - 30);
-  chatHistories.set(key, history);
-  saveHistoriesToDisk();
-}
-
-function clearHistory(chatId) {
-  chatHistories.delete(String(chatId));
-  saveHistoriesToDisk();
-}
-
-// Load on startup
-loadHistoriesFromDisk();
-
-// ─── SYSTEM INSTRUCTION ────────────────────────────────────────────────────────
-
-const SYSTEM_INSTRUCTION = `Tu es LAMP AI — un compagnon spirituel Mouride, savant et humble.
-Tu n'es pas un maître, ni au-dessus des autres. Tu es un frère en quête de connaissance,
-un compagnon de chemin qui partage ce qu'il a appris avec chaleur et respect mutuel.
-Tu parles au même niveau que l'utilisateur. Pas de formules condescendantes.
-
-DÉTECTION DE LANGUE :
-1. WOLOF : Si l'utilisateur parle Wolof ou mix Wolof/Français → réponds en Wolof bu koor.
-2. FRANÇAIS : Réponds en Français, garde les termes religieux en Wolof/Arabe.
-3. ANGLAIS : Si l'utilisateur parle Anglais → réponds en Anglais.
-
-<COMPORTEMENT_GENERAL>
-Tu réponds à TOUTES les questions — religieuses, factuelles, générales, ou de la vie courante.
-Ne refuse PAS de répondre sous prétexte d'éviter les hallucinations.
-L'hallucination interdite concerne UNIQUEMENT l'invention de versets arabes de Serigne Touba.
-Pour tout le reste (Islam général, histoire, science, actualité, vie quotidienne) : réponds
-librement et honnêtement avec tout ce que tu sais.
-
-Si tu ne sais pas quelque chose de précis : dis-le en une phrase et donne ce que tu peux.
-</COMPORTEMENT_GENERAL>
-
-<KHASSAID_RULES>
-Pour les Khassaids de Cheikh Ahmadou Bamba UNIQUEMENT :
-1. Le système injecte automatiquement les versets réels dans "=== SOURCE DIRECTE ===".
-2. TU DOIS utiliser ces versets injectés. Ce sont des textes authentiques du corpus.
-3. Ne JAMAIS inventer de l'arabe ou fabriquer des paroles de Serigne Touba de mémoire.
-4. Si aucun verset n'est injecté pour un Khassaid : dis-le en une phrase courte.
-5. Pour le nombre de versets : cherche dans <KHASSAIDS_METADATA>.
-</KHASSAID_RULES>
-
-<CITATIONS_PRECISES>
-- Quand un texte est fourni dans le contexte (SOURCE DIRECTE / VERSETS / CONTEXTE_RAG) :
-  cite-le MOT POUR MOT entre guillemets, avec sa référence, PUIS explique simplement.
-- Coran : Sourate + numéro d'Ayah seulement si tu es CERTAIN du numéro. Sinon nomme la sourate sans numéro.
-- Khassaid : titre + numéro de verset seulement s'il vient du contexte fourni.
-- Hadith : donne le sens et le nom de la collection (Bukhari, Muslim…).
-  N'INVENTE JAMAIS un numéro de hadith. Si tu n'es pas sûr qu'un hadith existe, dis "on rapporte que…" ou ne le cite pas.
-- N'invente JAMAIS une date, un chiffre, un nombre de versets ou une citation. Si tu ne sais pas : dis-le en une phrase.
-</CITATIONS_PRECISES>
-`;
-
-
-const KHASSAIDS_METADATA = `LISTE DES 122 KHASSAIDS ET LEUR NOMBRE DE VERSETS:
-Ahazanil Baaqi (25 versets), Ahuzu Bil Laahi Min Mayli (24), Ahyaytu Mawlidan (18), Ajabani Khayru Baaqin (6), Ajabani Rabbus Sama (78), Alaa Inani (26), Alal Mustafa Minni (10), Alhamdu Yujaazi (21), Allaahu Hayyun Samadun (4), Anta Rabbi (27), Ashaabul Jannati (24), Ashinu (42), Ashkuru Laaha (12), Asiru (56), Asma Ul Husna (40), Astaghfirulaha Bihi (12), Ataaba (116), Ayyasa (23), Bakh Bakhaa (26), Barakatu (20), Bihaqqi (7), Bismil Ilaahil Lazi (20), Bismil Laahi Ikfini (101), Bushra Lana (25), Faaqa Jamiha (12), Farrij (15), Fazal Lazina (17), Fazat Qilami (14), Fuzti (24), Hajat Qasa Idi (33), Halal Muntaqa (20), Halaman (36), Halayka Yaa Mukhtaru (11), Hamdi Wa Shukri (4), Hamidtu (19), Hammat Sulaymaa (115), Huqqal Bukaa (78), Ihdi Jamihana (6), Ilaa Ghayrinaa (24), Ilaa Nabiyyin (13), Inani Huztu (59), Innabna Laahi (24), Inni Ukhatibu (15), Innii Aquulu (19), Inniya Ahmadu (43), Jalibatul Maraghibi (533), Jawartu (29), Jazbu (185), Kafaaka Rabbuka (3), Kawin Liya (37), Khatimatu Munajati (39), Khayra Dayfin (14), Kun Katiman (8), Lamyabdu (12), Lil Mustafa Nawaytu (28), Lirabbin Ghafurin (44), Lirabbin Kariimin (17), Liyan Qaada (12), Madahtu Nabiyyal Muntaqa (12), Madal Khabiru (24), Madhun Nabiyyil Muntaqa (12), Mafatihul Bishri (374), Mafatihul Jinan (168), Mahaa Huyuubii (12), Man Zanani (15), Maramiya (5), Matlabul Fawzayni (236), Matlabushiffa (55), Matlabut Taqabbuli (60), Mawahibu (166), Midadi (66), Miftahun Nasri (15), Mim Ra Shin (3), Mimiya (150), Minal Haqqi (10), Minal Lawhil Mahfuzi (14), Minanul Baaqil Qadiim (217), Mulkul Lazii (10), Mumitu (14), Muqadamatul Amdah (192), Nuuru Daarayni (1517), Qalu Liyarkan (10), Raa Iya (117), Rabbi Karrimun (19), Rabbiya Ahmadu (28), Raditu (72), Rafahnaa (12), Rumna Shukur (89), Sabhun Taqii (30), Safar (12), Safaru Bamsashin (12), Salaatu Rahiimin (12), Sana Ilaahi (5), Shakawtu (13), Shakuru Rafihu (8), Sindidi (50), Takhmiisi (102), Tawbatun Nasuuh (106), Taysirul Hasiru (295), Tuhfatu Mutadarihin (58), Wa Kaana Haqqan (152), Wadudu (22), Waduuhu (16), Wajjahtu Hamdan (16), Wajjahtu Kulliya (25), Wajjahtu Wajhii (38), Wajjahtu Wajhiya (25), Wal Baladu (30), Walaqad Karamna (86), Waqani (17), Wawassaynal (25), Yaa Jumlatan (50), Yaa Kitaabal Kariimi (17), Yaa Mukrima Dayfi (14), Yaa Rakhmanu (9), Yaa Zal Busharati (61), Yaa Zal Wujuudi (12), Yaqini (16), Yarabbi (7), Yassara (12), Yasurru (12), Zallat (9).`;
-
-// ─── CORPUS SEARCH ─────────────────────────────────────────────────────────────
-
-const SYNONYMS = {
-  'serigne touba': ['cheikh ahmadou bamba', 'khassaid'],
-  'khadim rassoul': ['cheikh ahmadou bamba', 'khassaid'],
-  'bamba': ['cheikh ahmadou bamba', 'khassaid'],
-  'touba': ['cheikh ahmadou bamba', 'khassaid'],
-  'mouride': ['cheikh ahmadou bamba', 'khassaid'],
-  'xassida': ['khassaid'], 'khassida': ['khassaid'], 'kassida': ['khassaid'],
-  'khasside': ['khassaid'], 'xassaid': ['khassaid'], 'khassaid': ['khassaid'],
-  'poem': ['khassaid'], 'poème': ['khassaid'],
-  'prayer': ['khassaid', 'quran'], 'prière': ['khassaid', 'quran'],
-  'pardon': ['khassaid', 'quran', 'forgiveness', 'baal'],
-  'forgiveness': ['khassaid', 'quran', 'pardon'],
-  'baal': ['khassaid', 'pardon'],
-  'patience': ['khassaid', 'quran', 'muñ', 'sabr'],
-  'muñ': ['khassaid', 'patience'],
-  'sabr': ['khassaid', 'quran', 'patience'],
-  'amour': ['khassaid', 'quran', 'love', 'sopp'],
-  'love': ['khassaid', 'quran', 'amour'],
-  'foi': ['khassaid', 'quran', 'faith', 'iman'],
-  'faith': ['khassaid', 'quran', 'foi', 'iman'],
-  'iman': ['khassaid', 'quran', 'foi', 'faith'],
-  'repentir': ['khassaid', 'quran', 'tawba'],
-  'tawba': ['khassaid', 'quran', 'repentir'],
-  'dieu': ['khassaid', 'quran', 'allah', 'yàlla'],
-  'allah': ['khassaid', 'quran', 'dieu', 'yàlla'],
-  'prophète': ['khassaid', 'quran', 'muhammad'],
-  'muhammad': ['khassaid', 'quran', 'prophète'],
-  'travail': ['khassaid', 'quran', 'liggéey'],
-  'liggéey': ['khassaid', 'travail'],
-  'science': ['khassaid', 'quran', 'knowledge', 'xam'],
-  'xam': ['khassaid', 'science'],
-  'mort': ['khassaid', 'quran', 'death'],
-  'paradis': ['khassaid', 'quran', 'janna'],
-  'janna': ['khassaid', 'quran', 'paradis'],
-  'miséricorde': ['khassaid', 'quran', 'mercy', 'rahma'],
-  'mercy': ['khassaid', 'quran', 'miséricorde'],
-  'rahma': ['khassaid', 'quran', 'miséricorde'],
-};
-
-async function embedText(text) {
-  const response = await ai.models.embedContent({
-    model: 'gemini-embedding-001',
-    contents: text.substring(0, 2000),
-  });
-  return response.embeddings?.[0]?.values || response.embedding?.values || [];
-}
-
-function cosineSimilarity(a, b) {
-  let dotProduct = 0, magnitudeA = 0, magnitudeB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-    magnitudeA += a[i] * a[i];
-    magnitudeB += b[i] * b[i];
-  }
-  const magnitude = Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB);
-  return magnitude === 0 ? 0 : dotProduct / magnitude;
-}
-
-
-
-// ─── KHASSAID NAME SYNONYMS ───────────────────────────────────────────────────
-// Maps every spelling variant to a canonical file name
-const KHASSAID_SYNONYMS = {
-  // Mawahibu
-  'mawahibu': 'mawahibu.txt',
-  'mawahib': 'mawahibu.txt',
-  'mawahiboul quloub': 'mawahibu.txt',
-  'mawahibul quloub': 'mawahibu.txt',
-  'mawahiboul': 'mawahibu.txt',
-  'mawahibul': 'mawahibu.txt',
-  'mawahiboul qulouub': 'mawahibu.txt',
-  'mawahib al': 'mawahibu.txt',
-
-  // Jawartu
-  'jawartu': 'jawartu.txt',
-  'jawartou': 'jawartu.txt',
-  'jaawartou': 'jawartu.txt',
-  'jawaartu': 'jawartu.txt',
-  'ja wartu': 'jawartu.txt',
-  'djawartou': 'jawartu.txt',
-  'djawartu': 'jawartu.txt',
-  'jawortu': 'jawartu.txt',
-
-  // Mafatihul Bishri
-  'mafatihul bishri': 'mafatihul_bishri.txt',
-  'mafatihu': 'mafatihul_bishri.txt',
-  'mafatih': 'mafatihul_bishri.txt',
-  'mafatihul': 'mafatihul_bishri.txt',
-  'mafatihoul': 'mafatihul_bishri.txt',
-  'mafatihoul bishri': 'mafatihul_bishri.txt',
-  'mafatihul bichri': 'mafatihul_bishri.txt',
-  'mafatihoul bichri': 'mafatihul_bishri.txt',
-
-  // Nuuru Daarayni
-  'nuuru daarayni': 'nuuru_daarayni.txt',
-  'nuru daarayni': 'nuuru_daarayni.txt',
-  'nourou darayn': 'nuuru_daarayni.txt',
-  'nourou': 'nuuru_daarayni.txt',
-  'nuru darayni': 'nuuru_daarayni.txt',
-  'nourouddarayne': 'nuuru_daarayni.txt',
-  'nuuro': 'nuuru_daarayni.txt',
-
-  // Ndaxaan
-  'ndaxaan': 'ndaxaan.txt',
-  'ndaxan': 'ndaxaan.txt',
-  'ndakhaan': 'ndaxaan.txt',
-  'ndakhan': 'ndaxaan.txt',
-
-  // Matlabul Fawzayni
-  'matlabul fawzayni': 'matlabul_fawzayni.txt',
-  'matlaboul fawzayni': 'matlabul_fawzayni.txt',
-  'matlab': 'matlabul_fawzayni.txt',
-  'matlabul': 'matlabul_fawzayni.txt',
-  'matlaboul': 'matlabul_fawzayni.txt',
-  'matlabul fawzayn': 'matlabul_fawzayni.txt',
-
-  // Jazbu
-  'jazbu': 'jazbu.txt',
-  'jazboul': 'jazbu.txt',
-  'jazb': 'jazbu.txt',
-  'jazbul': 'jazbu.txt',
-
-  // Taysirul Hasiru
-  'taysirul hasiru': 'taysirul_hasiru.txt',
-  'taysirul': 'taysirul_hasiru.txt',
-  'taysir': 'taysirul_hasiru.txt',
-  'tayssirul': 'taysirul_hasiru.txt',
-  'tayssirul hasiru': 'taysirul_hasiru.txt',
-
-  // Burdah
-  'burdah': 'burdah.txt',
-  'burda': 'burdah.txt',
-  'qasidatul burdah': 'burdah.txt',
-  'kasidatul burda': 'burdah.txt',
-
-  // Masalikul Jinan
-  'masalikul jinan': 'masalikul_jinan.txt',
-  'masalik': 'masalikul_jinan.txt',
-  'masalikoul': 'masalikul_jinan.txt',
-  'masalikoul jinan': 'masalikul_jinan.txt',
-
-  // Tokhasse
-  'tokhasse': 'tokhasse.txt',
-  'tokhas': 'tokhasse.txt',
-  'tokhas se': 'tokhasse.txt',
-};
-
-// Resolve a query text to a Khassaid file (returns null if not found)
-function resolveKhassaidFile(lower) {
-  // Sort by key length desc so longer/more specific names match first
-  const sorted = Object.entries(KHASSAID_SYNONYMS).sort((a, b) => b[0].length - a[0].length);
-  for (const [alias, file] of sorted) {
-    if (lower.includes(alias)) {
-      return path.join(TEXTES_DIR, file);
-    }
-  }
-  return null;
-}
-
-async function getDirectVersesFallback(queryText) {
-  const lower = queryText.toLowerCase();
-  const targetFile = resolveKhassaidFile(lower);
-
-  if (!targetFile || !fs.existsSync(targetFile)) return null;
-
-  try {
-    const content = fs.readFileSync(targetFile, 'utf8');
-    const lines = content.split('\n').filter(l => l.trim().length > 5);
-    // Each verse = 2 lines (first hemistich + second hemistich)
-    const totalVerses = Math.floor(lines.length / 2);
-
-    // "tout", "complet", "intégral", "all", "entier" = return full Khassaid
-    const wantAll = /(tout|complet|intégral|intégrale|entier|all|full)/i.test(lower);
-
-    let verseCount = wantAll ? totalVerses : 20; // default 20 verses for AI context
-
-    if (!wantAll) {
-      // 'le premier vers' = exactly 1 verse
-      if (/\ble\s*premier\b/i.test(lower) || /\b1er\b/i.test(lower)) verseCount = 1;
-      else {
-        const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne)/i);
-        if (numMatch) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
-        else {
-          const anyNum = lower.match(/\b(\d+)\b/);
-          if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
-        }
-      }
-    }
-
-    const isGeneral = /(parle de|sujet|th[ée]me|about|contenu|sens|signif|d[ée]crit|overview)/i.test(lower);
-    if (isGeneral && !wantAll) verseCount = Math.min(20, totalVerses);
-
-    // Build verse pairs: line[i*2] + line[i*2+1]
-    const khassaidName = path.basename(targetFile, '.txt').replace(/_/g, ' ').toUpperCase();
-    const verses = [];
-    for (let i = 0; i < verseCount && (i * 2 + 1) < lines.length; i++) {
-      const h1 = lines[i * 2] || '';
-      const h2 = lines[i * 2 + 1] || '';
-      verses.push(`[Verset ${i + 1}]\n${h1}\n${h2}`);
-    }
-
-    if (verses.length > 0) {
-      return `\n=== SOURCE DIRECTE: ${khassaidName} (${verses.length}/${totalVerses} versets) ===\n` +
-             verses.join('\n');
-    }
-  } catch (e) {
-    console.error('[Fallback] Error reading file:', e.message);
-  }
-  return null;
-}
-
-
-let _versetsCache = null;
-
-import readline from 'readline';
-
-async function loadVersets() {
-  if (_versetsCache) return _versetsCache;
-  try {
-    const cachePath = path.join(ROOT_DIR, 'versets_cache.jsonl');
-    if (fs.existsSync(cachePath)) {
-      const start = Date.now();
-      const fileStream = fs.createReadStream(cachePath);
-      const rl = readline.createInterface({
-        input: fileStream,
-        crlfDelay: Infinity
-      });
-
-      _versetsCache = [];
-      for await (const line of rl) {
-        if (line.trim()) _versetsCache.push(JSON.parse(line));
-      }
-      console.log(`[Cache] Loaded ${_versetsCache.length} versets in ${Date.now() - start}ms`);
-    } else {
-      console.warn("[Cache] versets_cache.jsonl not found.");
-      _versetsCache = [];
-    }
-  } catch (err) {
-    console.error("[Cache] Error loading versets_cache.jsonl:", err.message);
-    _versetsCache = [];
-  }
-  return _versetsCache;
-}
-
-// Trigger initial load in background
-loadVersets().catch(e => console.error("[Cache] Background load failed:", e.message));
-
-async function searchVersets(queryText) {
-  // 1. Always try direct file fallback first (fastest, most accurate)
-  const direct = await getDirectVersesFallback(queryText);
-  if (direct) return direct;
-
-  const versets = await loadVersets();
-  if (versets.length === 0) return '';
-
-  try {
-    const queryEmb = await embedText(queryText);
-    const scored = versets
-      .filter(v => v.e && v.e.length > 0)
-      .map(v => ({ v, score: cosineSimilarity(queryEmb, v.e) }));
-    
-    scored.sort((a, b) => b.score - a.score);
-    const pertinents = scored.filter(s => s.score > 0.5).slice(0, 6);
-    
-    if (pertinents.length > 0) {
-      return '\n=== VERSETS KHASSAID EXACTS (À CITER) ===\n' + 
-             pertinents.map(s => s.v.c).join('\n---\n');
-    }
-  } catch (err) {
-    console.error('[Search] Vector error:', err.message);
-  }
-  
-  // Keyword fallback — match any word in the query against verse titles/content
-  const lower = queryText.toLowerCase();
-  const words = lower.split(/\s+/).filter(w => w.length > 3);
-  const matches = versets
-    .filter(v => words.some(w => v.t?.toLowerCase().includes(w) || v.c?.toLowerCase().includes(w)))
-    .slice(0, 5);
-  if (matches.length > 0) return '\n=== VERSETS KHASSAID EXACTS ===\n' + matches.map(v => v.c).join('\n---\n');
-  
-  return '';
-}
-
-async function searchCorpus(queryText) {
-  try {
-    const versetsContext = await searchVersets(queryText);
-    // Recherche dans la base documentaire classsique (summaries)
-    const snap = await getDocs(collection(db, 'knowledge_base'));
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    let docsContext = "";
-
-    if (items.length > 0) {
-      const lowerQuery = queryText.toLowerCase();
-      let expandedKeywords = lowerQuery.split(/\s+/).filter(w => w.length > 2);
-      expandedKeywords.push(lowerQuery);
-
-      const scored = items.map(item => {
-        const themes = (item.themes || []).join(' ');
-        const searchable = `${item.title} ${item.frenchSummary || ''} ${item.wolofSummary || ''} ${themes}`.toLowerCase();
-        let score = 0;
-        for (const kw of expandedKeywords) {
-          if (searchable.includes(kw)) score++;
-          if (item.title?.toLowerCase().includes(kw)) score += 3;
-        }
-        return { item, score };
-      }).filter(s => s.score > 0);
-
-      if (scored.length > 0) {
-        scored.sort((a, b) => b.score - a.score);
-        docsContext = scored.slice(0, 3).map(s => {
-          let entry = `[${s.item.category}] ${s.item.title}`;
-          if (s.item.frenchSummary) entry += `\nRésumé: ${s.item.frenchSummary}`;
-          return entry;
-        }).join("\n---\n");
-      }
-    }
-
-    if (versetsContext && docsContext) return versetsContext + '\n\n=== CONTEXTE DOCUMENTS ===\n' + docsContext;
-    return versetsContext || docsContext;
-  } catch (e) {
-    console.error("[Corpus] Error:", e.message);
-    return "";
-  }
-}
-
-
-// ─── MEMORY ─────────────────────────────────────────────────────────────────────
-
-async function getMemoryContext() {
-  try {
-    const q    = query(collection(db, 'ai_memory'), where('status', '==', 'active'));
-    const snap = await getDocs(q);
-    const memories = snap.docs.map(d => d.data());
-    if (memories.length === 0) return "";
-
-    const grouped = {};
-    for (const m of memories) {
-      const key = m.type || 'general';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(m.content);
-    }
-
-    let ctx = "=== MÉMOIRE PERMANENTE ===\n";
-    for (const [type, items] of Object.entries(grouped)) {
-      ctx += `\n[${type.toUpperCase()}]:\n`;
-      ctx += items.map((c, i) => `${i + 1}. ${c}`).join('\n') + '\n';
-    }
-    return ctx;
-  } catch (e) {
-    console.error("[Memory] Error:", e.message);
-    return "";
-  }
-}
-
-// ─── WOLOF DETECTION ────────────────────────────────────────────────────────────
-
-function isWolof(text) {
-  const markers = ['nanga def', 'jërëjëf', 'ndax', 'bëgg', 'xam', 'wax', 'jàng',
-    'liggéey', 'yàlla', 'ndeysaan', 'mbokk', 'muñ', 'baal', 'naka', 'nga', 'mooy', 'dafa', 'dina', 'ci', 'ak', 'yi', 'bi',
-    'xassida', 'ndawsi', 'dama', 'lii', 'loolu', 'degg', 'waaw', 'nit', 'jëf', 'def'];
-  const lower   = text.toLowerCase();
-  const words   = new Set(lower.split(/[^a-zàâçéèêëîïôûùüÿñæœ]+/i));
-  const matches = markers.filter(w => w.includes(' ') ? lower.includes(w) : words.has(w)).length;
-  return matches >= 2 || (matches >= 1 && text.length < 50);
-}
-
-// ─── AI RESPONSE ────────────────────────────────────────────────────────────────
-
-// Extract the last Khassaid mentioned in conversation history
-// so that follow-up messages like "donne les 20 premiers vers" still search the right file
-function extractLastKhassaidFromHistory(history) {
-  // Look at last 6 messages (most recent first)
-  const recent = [...history].reverse().slice(0, 6);
-  const sorted = Object.entries(KHASSAID_SYNONYMS).sort((a, b) => b[0].length - a[0].length);
-  for (const msg of recent) {
-    const text = msg.parts?.[0]?.text?.toLowerCase() || '';
-    for (const [alias] of sorted) {
-      if (text.includes(alias)) return alias;
-    }
-  }
-  return null;
-}
-
-// ─── UNDERSTANDING (from SAMADROIT) ────────────────────────────────────────────
-// One fast call reads the message + history and returns: answer language,
-// a standalone question (resolves follow-ups like "explique le premier vers"),
-// the precise topic and the Khassaid concerned.
-
-function historyAsText(history, max = 6) {
-  return history.slice(-max)
-    .map(m => `${m.role === 'user' ? 'Utilisateur' : 'LAMP'}: ${(m.parts?.[0]?.text || '').slice(0, 400)}`)
-    .join('\n');
-}
-
-function parseJson(raw) {
-  const s = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-  return JSON.parse(s);
-}
-
-async function understandMessage(userText, history) {
-  const fallback = { lang: isWolof(userText) ? 'wo' : 'fr', question: userText, topic: '', khassaid: '' };
-  try {
-    const hist = history.length ? `Historique récent :\n${historyAsText(history)}\n\n` : '';
-    const r = await generateChat({
-      model: LITE_MODEL,
-      contents: `${hist}Nouveau message : "${userText}"
-
-Analyse ce message dans le contexte de la conversation :
-1. lang : langue voulue pour LA RÉPONSE. "wo" si le message est écrit en wolof OU demande une réponse en wolof. "en" si en anglais. Sinon "fr". Attention : "Serigne Touba", "Khassaid", "Mouride" sont des noms propres, pas du wolof.
-2. question : la question reformulée en français, claire et AUTONOME. Si c'est une suite ("explique le premier vers", "et pour la prière ?"), reconstruis la vraie question grâce à l'historique.
-3. topic : le sujet précis en 3 à 7 mots.
-4. khassaid : le titre du Khassaid concerné (dans le message ou l'historique), sinon "".
-
-Réponds UNIQUEMENT en JSON : {"lang":"fr|wo|en","question":"...","topic":"...","khassaid":"..."}`,
-      config: { temperature: 0.1, responseMimeType: 'application/json' },
-    });
-    const o = parseJson(r.text);
-    return {
-      lang: ['wo', 'en', 'fr'].includes(o.lang) ? o.lang : fallback.lang,
-      question: (o.question || userText).trim(),
-      topic: (o.topic || '').trim(),
-      khassaid: (o.khassaid || '').trim(),
-    };
-  } catch (e) {
-    console.warn('[Understand] fallback:', e.message);
-    return fallback;
-  }
-}
-
-// ─── ON-TOPIC VERIFIER (from SAMADROIT) ────────────────────────────────────────
-async function verifyOnTopic(question, topic, answer) {
-  if (!answer) return false;
-  try {
-    const r = await generateChat({
-      model: LITE_MODEL,
-      contents: `QUESTION : ${question}\nSUJET : ${topic || '-'}\nRÉPONSE : ${answer.slice(0, 1500)}\n\nLa RÉPONSE parle-t-elle du même sujet que la QUESTION ? Réponds "non" SEULEMENT si elle parle clairement d'autre chose. Réponds UNIQUEMENT "oui" ou "non".`,
-      config: { temperature: 0 },
-    });
-    return !/^\s*non/i.test(r.text || '');
-  } catch {
-    return true; // never block an answer because the verifier failed
-  }
-}
-
-async function getAIResponse(userText, chatId) {
-  const history = getHistory(chatId);
-  const u = await understandMessage(userText, history);
-  console.log(`[Understand] lang=${u.lang} topic="${u.topic}" khassaid="${u.khassaid}" q="${u.question.slice(0, 80)}"`);
-
-  // Retrieval uses the standalone question (+ Khassaid), not the raw follow-up
-  let searchQuery = [u.question, u.khassaid].filter(Boolean).join(' ');
-  if (!resolveKhassaidFile(searchQuery.toLowerCase())) {
-    const lastKhassaid = extractLastKhassaidFromHistory(history);
-    if (lastKhassaid) {
-      searchQuery = `${searchQuery} ${lastKhassaid}`;
-      console.log(`[Context] Enriched query with history Khassaid: "${lastKhassaid}"`);
-    }
-  }
-
-  const [corpusContext, memoryContext] = await Promise.all([
-    searchCorpus(searchQuery).catch(() => ""),
-    getMemoryContext().catch(() => ""),
-  ]);
-
-  let fullInstruction = SYSTEM_INSTRUCTION;
-  if (memoryContext) fullInstruction += `\n\n<MEMORY_SYSTEM>\n${memoryContext}\n</MEMORY_SYSTEM>`;
-  fullInstruction += `\n\n<KHASSAIDS_METADATA>\n${KHASSAIDS_METADATA}\n</KHASSAIDS_METADATA>`;
-  fullInstruction += `\n\n<CONTEXTE_RAG>\n${corpusContext || "Aucun résultat trouvé."}\n</CONTEXTE_RAG>`;
-
-  const userWantsWolof = u.lang === 'wo';
-
-  // Build multi-turn contents: history + current user message
-  const contents = history.length > 0
-    ? [...history, { role: 'user', parts: [{ text: userText }] }]
-    : userText;
-
-  // Step 1: Generate in French with Google Search grounding for factual questions
-  const frInstruction = fullInstruction + `\n\nIMPORTANT: Réponds en ${u.lang === 'en' ? 'ANGLAIS' : 'FRANÇAIS'}. Question comprise : "${u.question}" (sujet : ${u.topic || '-'}). Réponds précisément à CETTE question. Si le contexte bibliothèque contient le texte demandé, cite-le mot pour mot avant d'expliquer. Ne fabrique aucune citation.`;
-
-  console.log(`[Debug] Calling generateContent (French) for text: ${userText.substring(0, 30)}`);
-  const frResponse = await generateChat({
-    model: CHAT_MODEL,
-    contents,
-    config: {
-      systemInstruction: frInstruction,
-      temperature: 0.4,
-      tools: [{ googleSearch: {} }],  // Google Search grounding for factual queries
-    },
-  });
-  console.log(`[Debug] generateContent returned properly.`);
-  let frText = frResponse.text || '...';
-
-  // Verifier: if the answer drifts off-topic, regenerate once with a sharper instruction
-  if (!(await verifyOnTopic(u.question, u.topic, frText))) {
-    console.warn(`[Verify] Off-topic answer for "${u.question.slice(0, 60)}" — regenerating`);
-    const retry = await generateChat({
-      model: CHAT_MODEL,
-      contents,
-      config: {
-        systemInstruction: frInstruction + `\n\nTa réponse précédente ne répondait pas à la question. Réponds UNIQUEMENT à : "${u.question}". Si tu ne sais pas, dis-le en une phrase.`,
-        temperature: 0.2,
-      },
-    });
-    if (retry.text) frText = retry.text;
-  }
-
-  // Step 2: If user writes Wolof, translate to pure Wolof
-  if (userWantsWolof) {
-    const woResponse = await generateChat({
-      model: CHAT_MODEL,
-      contents: `Translate this French text to pure Wolof (Wolof bu koor). Rules:
-- Use authentic Wolof, minimize French loanwords
-- Keep Arabic religious terms (Sourate, Ayah, Khassaid titles)
-- Keep all Quran/Khassaid references exactly as they are
-- Natural spoken Wolof tone, like a Griot speaking
-- Output ONLY the Wolof translation, nothing else
-
-French text:
-${frText}`,
-      config: { temperature: 0.3 },
-    });
-    return woResponse.text || frText;
-  }
-
-  return frText;
-}
-
-// ─── PCM → WAV ──────────────────────────────────────────────────────────────────
-
-function pcmToWav(pcmBuffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
-  const byteRate   = sampleRate * numChannels * (bitsPerSample / 8);
-  const blockAlign = numChannels * (bitsPerSample / 8);
-  const dataSize   = pcmBuffer.length;
-  const wav        = Buffer.alloc(44 + dataSize);
-
-  wav.write('RIFF', 0);
-  wav.writeUInt32LE(36 + dataSize, 4);
-  wav.write('WAVE', 8);
-  wav.write('fmt ', 12);
-  wav.writeUInt32LE(16, 16);
-  wav.writeUInt16LE(1, 20);
-  wav.writeUInt16LE(numChannels, 22);
-  wav.writeUInt32LE(sampleRate, 24);
-  wav.writeUInt32LE(byteRate, 28);
-  wav.writeUInt16LE(blockAlign, 32);
-  wav.writeUInt16LE(bitsPerSample, 34);
-  wav.write('data', 36);
-  wav.writeUInt32LE(dataSize, 40);
-  pcmBuffer.copy(wav, 44);
-
-  return wav;
-}
-
-// ─── TTS ────────────────────────────────────────────────────────────────────────
-
-function prepareTTSText(text) {
-  // 1. Strip Arabic script (TTS model can't pronounce it — causes 500 errors)
-  let clean = text.replace(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+/g, '');
-  // 2. Strip Markdown formatting
-  clean = clean.replace(/[*_`~#>]/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-  // 3. Collapse multiple blank lines
-  clean = clean.replace(/\n{3,}/g, '\n\n').trim();
-  // 4. Cap at 800 chars, break at last sentence boundary
-  if (clean.length > 800) {
-    const cut = clean.substring(0, 800);
-    const lastDot = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('!'), cut.lastIndexOf('?'), cut.lastIndexOf('\n'));
-    clean = lastDot > 400 ? cut.substring(0, lastDot + 1) : cut + '...';
-  }
-  return clean.trim();
-}
-
-async function textToSpeech(text) {
-  const ttsText = prepareTTSText(text);
-  if (!ttsText || ttsText.length < 3) throw new Error('TTS text too short after cleaning');
-
-  // Retry up to 3 times with 2s backoff (handles Gemini 500 errors)
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: TTS_MODEL,
-        contents: [{ parts: [{ text: ttsText }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Orus' }
-            }
-          }
-        }
-      });
-
-      const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!audioData) throw new Error('No audio data in response');
-
-      // Gemini TTS returns raw PCM (audio/L16, 24kHz, mono) — convert to WAV
-      const pcmBuffer = Buffer.from(audioData, 'base64');
-      return pcmToWav(pcmBuffer, 24000, 1, 16);
-
-    } catch (err) {
-      if (attempt < 3) {
-        console.warn(`[TTS] Attempt ${attempt} failed: ${err.message} — retrying in 2s...`);
-        await new Promise(r => setTimeout(r, 2000));
-      } else {
-        throw err; // rethrow on final attempt
-      }
-    }
-  }
-}
-
-
-// ─── DOWNLOAD FILE ──────────────────────────────────────────────────────────────
-
-function downloadFile(url) {
-  return new Promise((resolve, reject) => {
-    const handler = (res) => {
-      const chunks = [];
-      res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-      res.on('error', reject);
-    };
-    (url.startsWith('https') ? https : http).get(url, handler).on('error', reject);
-  });
-}
-
-// ─── TRANSCRIBE ─────────────────────────────────────────────────────────────────
-
-async function transcribeVoice(fileBuffer, mimeType) {
-  const response = await generateChat({
-    model: CHAT_MODEL,
-    contents: {
-      parts: [
-        { inlineData: { mimeType, data: fileBuffer.toString('base64') } },
-        { text: "Transcris cet audio exactement tel que parlé. Garde la langue originale (Wolof, Français ou Anglais). Retourne UNIQUEMENT la transcription." }
-      ]
-    },
-    config: { temperature: 0.1 }
-  });
-  return response.text?.trim() || "";
-}
-
-// ─── SEND VOICE (WAV buffer) ─────────────────────────────────────────────────────
-
-async function sendWavVoice(chatId, wavBuffer) {
-  await bot.sendVoice(chatId, wavBuffer, {}, { filename: 'voice.wav', contentType: 'audio/wav' });
-}
-
-// ─── HANDLERS ───────────────────────────────────────────────────────────────────
-
-bot.onText(/\/start/, (msg) => {
-  const name = msg.from?.first_name || 'Disciple';
-  bot.sendMessage(msg.chat.id,
-    `As-salamu alaykum ${name}\n\n` +
-    `Je suis LAMP AI, ton guide spirituel Mouride.\n\n` +
-    `Comment m'utiliser :\n` +
-    `- Écris-moi un message texte\n` +
-    `- Envoie-moi un message vocal\n\n` +
-    `Je te répondrai en texte ET en vocal.\n\n` +
-    `Essaie : "Parle-moi du pardon chez Serigne Touba"\n\n` +
-    `Commandes :\n/clear — effacer l'historique de la conversation`
-  );
 });
 
-bot.onText(/\/help/, (msg) => {
-  bot.sendMessage(msg.chat.id,
-    `LAMP AI — Guide\n\n` +
-    `Écris ou envoie un vocal sur l'Islam, le Mouridisme, Cheikh Ahmadou Bamba, le Coran, les Khassaid...\n\n` +
-    `Exemples :\n` +
-    `- "Parle-moi de la patience dans les Khassaid"\n` +
-    `- "Que dit le Coran sur le pardon ?"\n` +
-    `- "Serigne Touba wax na ci liggéey?"\n` +
-    `- "Donne-moi le Mawahibou complet"\n\n` +
-    `/clear — recommencer une nouvelle conversation`
-  );
+setInterval(() => console.log(`[LAMP] alive — ${new Date().toISOString()} — ${activeChats()} chats`), 5 * 60_000).unref();
+
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, async () => {
+    console.log(`[LAMP] ${sig} — stopping`);
+    try { await bot.stopPolling(); } catch { /* ignore */ }
+    process.exit(0);
+  });
+}
+
+// ─── sending (safe) ──────────────────────────────────────────────────────────
+async function send(chatId, md, opts = {}) {
+  for (const part of splitMessage(md)) {
+    try {
+      await bot.sendMessage(chatId, toTelegramHtml(part), { parse_mode: 'HTML', disable_web_page_preview: true, ...opts });
+    } catch {
+      try { await bot.sendMessage(chatId, toPlain(part), { disable_web_page_preview: true, ...opts }); }
+      catch (e) { console.error('[Send] failed:', e.message); }
+    }
+  }
+}
+
+async function sendVoiceReply(chatId, text) {
+  if (!VOICE_REPLY) return;
+  try {
+    bot.sendChatAction(chatId, 'record_voice').catch(() => {});
+    const audio = await speak(text);
+    if (!audio) return;
+    const fileOpts = { filename: audio.filename, contentType: audio.contentType };
+    if (audio.isVoice) await bot.sendVoice(chatId, audio.buffer, {}, fileOpts);
+    else await bot.sendAudio(chatId, audio.buffer, { title: 'LAMP AI', performer: 'LAMP' }, fileOpts);
+  } catch (e) {
+    console.warn('[Voice] reply skipped:', e.message.slice(0, 120));    // text was already sent: never an error for the user
+  }
+}
+
+function keepTyping(chatId) {
+  bot.sendChatAction(chatId, 'typing').catch(() => {});
+  const t = setInterval(() => bot.sendChatAction(chatId, 'typing').catch(() => {}), 4500);
+  return () => clearInterval(t);
+}
+
+const BUSY_MSG = {
+  fr: "Baal ma, LAMP est très sollicité en ce moment. Réessaie dans une minute, s'il te plaît.",
+  wo: 'Baal ma, LAMP dafa xèy lool léegi. Jéemaatal ci benn simili.',
+  en: 'Sorry, LAMP is very busy right now. Please try again in a minute.',
+};
+
+// ─── one message at a time per chat (keeps the conversation in order) ────────
+const queues = new Map();
+function enqueue(chatId, job) {
+  const prev = queues.get(chatId) || Promise.resolve();
+  const next = prev.then(job, job).catch((e) => console.error('[Queue]', e?.message || e));
+  queues.set(chatId, next);
+  next.finally(() => { if (queues.get(chatId) === next) queues.delete(chatId); });
+}
+
+async function handleQuestion(msg, question, { fromVoice = false } = {}) {
+  const chatId = msg.chat.id;
+  const stop = keepTyping(chatId);
+  let lang = 'fr';
+  try {
+    const r = await answer(question, getHistory(chatId));
+    lang = r.lang;
+    stop();
+    await send(chatId, r.text);
+    addExchange(chatId, question, r.text);
+    logInteraction(chatId, msg.from?.username || msg.from?.first_name, question, r.text, { lang, voice: fromVoice });
+    if (!r.direct) await sendVoiceReply(chatId, r.text);
+  } catch (e) {
+    stop();
+    console.error('[Answer] failed:', e?.message || e);
+    await send(chatId, BUSY_MSG[lang] || BUSY_MSG.fr);
+  }
+}
+
+const isStale = (msg) => msg.date < STARTED - 120;     // ignore the backlog piled up while the bot was off
+
+// ─── commands ────────────────────────────────────────────────────────────────
+bot.onText(/^\/start\b/, (msg) => {
+  const name = msg.from?.first_name || '';
+  send(msg.chat.id,
+    `As-salamu alaykum ${name} 🤍\n\n` +
+    `Je suis **LAMP AI**, un talibé de Serigne Touba. Je réponds à tes questions à la lumière du **Coran**, ` +
+    `de la **Sunna** du Prophète (ﷺ) et des **enseignements de Cheikh Ahmadou Bamba**.\n\n` +
+    `Écris-moi ou envoie un vocal, en français, en wolof ou en anglais.\n\n` +
+    `Essaie :\n• Que disent les Khassaids sur la patience ?\n• Lis-moi les 5 premiers distiques de Jazbul Qulub\n• Naka la Serigne Touba gisé liggéey ?\n\n` +
+    `/khassaids — la liste des Khassaids de la bibliothèque\n/clear — nouvelle conversation`);
 });
 
-bot.onText(/\/clear/, (msg) => {
+bot.onText(/^\/help\b/, (msg) => send(msg.chat.id,
+  `**LAMP AI** — pose ta question par écrit ou en vocal.\n\n` +
+  `• Questions sur l'islam, le Coran, les hadiths, la vie de Serigne Touba, la voie mouride, la vie de tous les jours\n` +
+  `• Texte d'un Khassaid : « Donne-moi les 10 premiers distiques de Mawahibu »\n` +
+  `• Wolof : « Lan la Serigne Touba wax ci muñ ? »\n\n` +
+  `Les citations viennent d'une bibliothèque vérifiée (Coran, Bukhari, Muslim, Abu Dawud, Malik, Nawawi, 122 Khassaids).\n\n` +
+  `/khassaids — liste · /clear — nouvelle conversation`));
+
+bot.onText(/^\/clear\b/, (msg) => {
   clearHistory(msg.chat.id);
-  bot.sendMessage(msg.chat.id, "Historique effacé. Nouvelle conversation commencée. As-salamu alaykum.");
+  send(msg.chat.id, 'Nouvelle conversation. As-salamu alaykum.');
 });
 
-// ─── DIRECT CITATION BYPASS ─────────────────────────────────────────────────────
-// For "sans traduction" requests: bypass AI entirely, read corpus directly
+bot.onText(/^\/khassaids\b/, (msg) => send(msg.chat.id, `📚 **Khassaids de la bibliothèque** (nombre de distiques) :\n\n${listKhassaids()}`));
 
-function isVerseRequest(text) {
-  return /(cite|donne|montre|liste|rappelle|lis|copie|écris|transcris|avant|suivant|prem|vers|verset|ayat|complet|intégral|sans traduction|arabe|first|show me|give me|recite)/i.test(text);
-}
+// ─── messages ────────────────────────────────────────────────────────────────
+bot.on('message', (msg) => {
+  if (isStale(msg)) return;
+  const chatId = msg.chat.id;
 
-async function getDirectCitationResponse(userText, chatId) {
-  const lower = userText.toLowerCase();
-  
-  let targetFile = resolveKhassaidFile(lower);
-  if (!targetFile) {
-    const history = getHistory(chatId);
-    const lastKhassaid = extractLastKhassaidFromHistory(history);
-    if (lastKhassaid) targetFile = resolveKhassaidFile(lastKhassaid);
+  if (msg.text) {
+    if (msg.text.startsWith('/')) return;              // commands handled above
+    console.log(`[Message] ${chatId}: ${msg.text.slice(0, 80)}`);
+    enqueue(chatId, () => handleQuestion(msg, msg.text.trim()));
+    return;
   }
-  
-  if (!targetFile || !fs.existsSync(targetFile)) return null;
-  
-  try {
-    const content = fs.readFileSync(targetFile, 'utf8');
-    const lines = content.split('\n').filter(l => l.trim().length > 5);
-    // Each verse = 2 lines (hemistich 1 + hemistich 2)
-    const totalVerses = Math.floor(lines.length / 2);
 
-    // "tout", "complet", "intégral", "all", "entier" = full Khassaid
-    const wantAll = /(tout|complet|intégral|intégrale|entier|all|full)/i.test(lower);
-
-    let verseCount = wantAll ? totalVerses : 10;
-    // 'le premier vers' = exactly 1 verse
-    if (/\ble\s*premier\b/i.test(lower) || /\b1er\b/i.test(lower)) verseCount = 1;
-    else {
-      const numMatch = lower.match(/(\d+)\s*(?:\w+\s*)?(?:1er|prem|vers|verset|ayat|premier|ligne|suiv)/i);
-      if (numMatch && !wantAll) verseCount = Math.min(parseInt(numMatch[1]), totalVerses);
-      else {
-        const anyNum = lower.match(/\b(\d+)\b/);
-        if (anyNum) verseCount = Math.min(parseInt(anyNum[1]), totalVerses);
+  const media = msg.voice || msg.audio || msg.video_note;
+  if (media) {
+    enqueue(chatId, async () => {
+      const stop = keepTyping(chatId);
+      try {
+        if (media.file_size && media.file_size > 19 * 1024 * 1024) { stop(); return send(chatId, 'Ce fichier audio est trop long. Envoie un vocal plus court, s\'il te plaît.'); }
+        const link = await bot.getFileLink(media.file_id);
+        const res = await fetch(link);
+        if (!res.ok) throw new Error(`download ${res.status}`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        const mime = msg.voice ? 'audio/ogg' : msg.video_note ? 'video/mp4' : (media.mime_type || 'audio/mpeg');
+        const said = (await transcribe(buf, mime)).trim();
+        stop();
+        if (!said) return send(chatId, "Je n'ai pas bien entendu. Peux-tu répéter ou l'écrire ?");
+        console.log(`[Voice] ${chatId}: ${said.slice(0, 80)}`);
+        await send(chatId, `🎙️ _${said}_`);
+        await handleQuestion(msg, said, { fromVoice: true });
+      } catch (e) {
+        stop();
+        console.error('[Voice] failed:', e?.message || e);
+        await send(chatId, BUSY_MSG.fr);
       }
-    }
-
-    const khassaidName = path.basename(targetFile, '.txt').replace(/_/g, ' ').toUpperCase();
-    
-    // Build numbered verse pairs
-    const verses = [];
-    for (let i = 0; i < verseCount && (i * 2 + 1) < lines.length; i++) {
-      const h1 = lines[i * 2] || '';
-      const h2 = lines[i * 2 + 1] || '';
-      verses.push(`${i + 1}. ${h1}\n   ${h2}`);
-    }
-
-    if (verses.length === 0) return null;
-
-    return `📖 *${khassaidName}* — ${verses.length}/${totalVerses} versets\n\n` +
-           verses.join('\n\n');
-    
-  } catch (e) {
-    console.error('[DirectCitation] Error:', e.message);
-    return null;
+    });
+    return;
   }
-}
 
-// Text messages
-bot.on('message', async (msg) => {
-  if (!msg.text || msg.text.startsWith('/')) return;
-  const chatId = msg.chat.id;
-
-  try {
-    bot.sendChatAction(chatId, 'typing');
-    console.log(`[Message] Reçu: ${msg.text}`);
-
-    // DIRECT BYPASS: for "X vers sans traduction" — skip AI, read corpus directly
-    let aiResponse = null;
-    const noTranslation = /(sans traduction|arabe seulement|arabic only|juste l.arabe|just arabic|without translation)/i.test(msg.text);
-    if (noTranslation && isVerseRequest(msg.text)) {
-      aiResponse = await getDirectCitationResponse(msg.text, chatId);
-      if (aiResponse) console.log(`[DirectCitation] Served from corpus directly.`);
-    }
-
-    // Fallback to AI for everything else
-    if (!aiResponse) {
-      aiResponse = await getAIResponse(msg.text, chatId);
-    }
-    
-    console.log(`[Message] AI a répondu.`);
-
-    addToHistory(chatId, 'user', msg.text);
-    addToHistory(chatId, 'model', aiResponse);
-    logInteraction(chatId, msg.from?.username || msg.from?.first_name, msg.text, aiResponse);
-
-
-    await bot.sendMessage(chatId, aiResponse, { parse_mode: 'Markdown' }).catch(() =>
-      bot.sendMessage(chatId, aiResponse) // fallback without markdown if parse fails
-    );
-
-    try {
-      bot.sendChatAction(chatId, 'record_voice');
-      const wavBuffer = await textToSpeech(aiResponse);
-      await sendWavVoice(chatId, wavBuffer);
-    } catch (ttsErr) {
-      console.warn("[TTS] Failed:", ttsErr.message);
-    }
-  } catch (err) {
-    console.error("[Text] Error:", err.message);
-    bot.sendMessage(chatId, "Baal ma, erreur technique. Réessayez.");
+  if (msg.photo || msg.document || msg.sticker || msg.video) {
+    send(chatId, 'Je comprends le texte et les messages vocaux. Écris-moi ou envoie un vocal 🙂');
   }
 });
 
-
-// Voice messages
-bot.on('voice', async (msg) => {
-  const chatId = msg.chat.id;
-  try {
-    bot.sendChatAction(chatId, 'typing');
-    const file    = await bot.getFile(msg.voice.file_id);
-    const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
-    const fileBuffer = await downloadFile(fileUrl);
-
-    const transcription = await transcribeVoice(fileBuffer, msg.voice.mime_type || 'audio/ogg');
-    if (!transcription) {
-      await bot.sendMessage(chatId, "Je n'ai pas compris. Pouvez-vous répéter ?");
-      return;
-    }
-
-    await bot.sendMessage(chatId, `"${transcription}"`);
-    bot.sendChatAction(chatId, 'typing');
-    const aiResponse = await getAIResponse(transcription, chatId);
-
-    addToHistory(chatId, 'user', transcription);
-    addToHistory(chatId, 'model', aiResponse);
-
-    await bot.sendMessage(chatId, aiResponse);
-
-    try {
-      bot.sendChatAction(chatId, 'record_voice');
-      const wavBuffer = await textToSpeech(aiResponse);
-      await sendWavVoice(chatId, wavBuffer);
-    } catch (ttsErr) {
-      console.warn("[TTS] Failed:", ttsErr.message);
-    }
-  } catch (err) {
-    console.error("[Voice] Error:", err.message);
-    bot.sendMessage(chatId, "Baal ma, erreur technique. Réessayez.");
-  }
-});
-
-// Audio files
-bot.on('audio', async (msg) => {
-  const chatId = msg.chat.id;
-  try {
-    bot.sendChatAction(chatId, 'typing');
-    const file    = await bot.getFile(msg.audio.file_id);
-    const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
-    const fileBuffer = await downloadFile(fileUrl);
-
-    const transcription = await transcribeVoice(fileBuffer, msg.audio.mime_type || 'audio/mpeg');
-    if (!transcription) { await bot.sendMessage(chatId, "Je n'ai pas compris."); return; }
-
-    await bot.sendMessage(chatId, `"${transcription}"`);
-    bot.sendChatAction(chatId, 'typing');
-    const aiResponse = await getAIResponse(transcription, chatId);
-
-    addToHistory(chatId, 'user', transcription);
-    addToHistory(chatId, 'model', aiResponse);
-
-    await bot.sendMessage(chatId, aiResponse);
-
-    try {
-      bot.sendChatAction(chatId, 'record_voice');
-      const wavBuffer = await textToSpeech(aiResponse);
-      await sendWavVoice(chatId, wavBuffer);
-    } catch (ttsErr) {
-      console.warn("[TTS] Failed:", ttsErr.message);
-    }
-  } catch (err) {
-    console.error("[Audio] Error:", err.message);
-    bot.sendMessage(chatId, "Erreur technique. Réessayez.");
-  }
-});
-
-// Keep-alive log every 5 minutes
-setInterval(() => {
-  console.log(`[LAMP Bot] Alive — ${new Date().toISOString()} — ${chatHistories.size} active chats`);
-}, 5 * 60 * 1000);
-
-console.log('[LAMP Bot] Ready.');
+// ─── start ───────────────────────────────────────────────────────────────────
+// An old webhook on this token would block polling (409): remove it first.
+bot.deleteWebHook()
+  .catch((e) => console.warn('[LAMP] deleteWebHook:', e.message))
+  .finally(() => {
+    bot.startPolling().catch((e) => console.error('[LAMP] startPolling:', e.message));
+    bot.getMe().then((me) => console.log(`[LAMP] Started — polling Telegram as @${me.username}`))
+      .catch((e) => console.error('[LAMP] getMe failed:', e.message));
+  });
