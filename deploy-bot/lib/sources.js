@@ -40,9 +40,10 @@ const KHASSAIDS = new Map();   // file stem -> { title, file, verses: [[h1,h2],.
 function loadKhassaidFiles() {
   if (!fs.existsSync(TEXTES_DIR)) { console.warn(`[Sources] Khassaid folder missing: ${TEXTES_DIR}`); return; }
   for (const f of fs.readdirSync(TEXTES_DIR).filter((x) => x.endsWith('.txt'))) {
-    const lines = fs.readFileSync(path.join(TEXTES_DIR, f), 'utf8').split('\n').filter((l) => l.trim().length > 5);
+    // two lines per distique; a line '*' means the distique has a single verse (e.g. 5th line of a takhmis stanza)
+    const lines = fs.readFileSync(path.join(TEXTES_DIR, f), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l.length > 5 || l === '*');
     const verses = [];
-    for (let i = 0; i + 1 < lines.length; i += 2) verses.push([lines[i].trim(), lines[i + 1].trim()]);
+    for (let i = 0; i + 1 < lines.length; i += 2) verses.push([lines[i], lines[i + 1]]);
     const stemName = f.replace(/\.txt$/, '');
     const title = stemName.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
     KHASSAIDS.set(stemName, { title, file: f, verses });
@@ -118,7 +119,7 @@ export function readKhassaid(nameOrText, from = 1, to = null, max = 40) {
     nombre_de_distiques: total,
     premier: start, dernier: end,
     ...(truncated ? { suite: `Texte limité à ${max} distiques. La suite commence au distique ${end + 1}.` } : {}),
-    distiques: k.verses.slice(start - 1, end).map(([a, b], i) => ({ numero: start + i, texte: `${a}\n${b}` })),
+    distiques: k.verses.slice(start - 1, end).map(([a, b], i) => ({ numero: start + i, texte: b === '*' ? a : `${a}\n${b}` })),
   };
 }
 
@@ -179,14 +180,45 @@ export async function searchKhassaid(topic, limit = 6) {
         .filter((x) => x.s > 0.5)
         .sort((a, b) => b.s - a.s)
         .slice(0, limit)
-        .map(({ v }) => ({ khassaid: v.t, distique: v.n, texte: v.c.replace(/^\[[^\]]*\]\n?/, '') }));
+        .map(({ v }) => toLibrary(v)).filter(Boolean);
     }
   } catch (e) {
     console.warn('[Sources] semantic search failed:', e.message);
   }
   const kws = keywords(topic);
   return versets.filter((v) => kws.some((k) => norm(v.t).includes(k))).slice(0, limit)
-    .map((v) => ({ khassaid: v.t, distique: v.n, texte: v.c.replace(/^\[[^\]]*\]\n?/, '') }));
+    .map((v) => toLibrary(v)).filter(Boolean);
+}
+
+// The meaning index may be older than the library (texts re-verified from the PDFs):
+// every hit is looked up again in the library so the text and number shown are the current ones.
+const ARABIC_SKEL = (s) => String(s || '').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640\u06D6-\u06ED]/g, '')
+  .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[ؤ]/g, 'و').replace(/[ئ]/g, 'ي').replace(/ء/g, '')
+  .replace(/[^\u0621-\u064A]/g, '');
+function bigrams(s) { const m = new Map(); for (let i = 0; i < s.length - 1; i++) { const g = s.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1); } return m; }
+function dice(a, b) {
+  if (!a || !b) return 0;
+  const A = bigrams(a), B = bigrams(b); let inter = 0, n = 0;
+  for (const [g, c] of A) { inter += Math.min(c, B.get(g) || 0); n += c; }
+  for (const c of B.values()) n += c;
+  return n ? (2 * inter) / n : 0;
+}
+function toLibrary(v) {
+  if (!KHASSAIDS.size) loadKhassaidFiles();
+  const stemName = findKhassaid(v.t);
+  const k = stemName && KHASSAIDS.get(stemName);
+  if (!k) return null;
+  const want = ARABIC_SKEL(v.c.replace(/^\[[^\]]*\]\n?/, ''));
+  let best = null;
+  const from = Math.max(0, v.n - 15), to = Math.min(k.verses.length, v.n + 15);   // numbering may have shifted a little
+  for (let i = from; i < to; i++) {
+    const [a, b] = k.verses[i];
+    const sc = dice(want, ARABIC_SKEL(b === '*' ? a : a + b));
+    if (!best || sc > best.sc) best = { sc, i };
+  }
+  if (!best || best.sc < 0.8) return null;
+  const [a, b] = k.verses[best.i];
+  return { khassaid: k.title, distique: best.i + 1, texte: b === '*' ? a : `${a}\n${b}` };
 }
 
 // ─── CORAN ───────────────────────────────────────────────────────────────────

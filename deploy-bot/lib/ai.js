@@ -46,7 +46,7 @@ export async function generate(params, chain = 'answer') {
           exhausted.set(model, Date.now() + 10 * 60_000);
           break;
         }
-        if (/API_KEY|PERMISSION_DENIED|403|401|billing|suspended/i.test(msg)) {
+        if (/API_KEY|PERMISSION_DENIED|403|401|402|billing|suspended|prepayment|depleted/i.test(msg)) {
           console.warn(`[AI] Gemini refused (${msg.slice(0, 70)}) → Groq`);   // key/account problem: no Gemini model will work
           break gemini;
         }
