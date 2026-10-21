@@ -685,7 +685,7 @@ async function verifyOnTopic(question, topic, answer) {
   try {
     const r = await generateChat({
       model: LITE_MODEL,
-      contents: `QUESTION : ${question}\nSUJET : ${topic || '-'}\nRÉPONSE : ${answer.slice(0, 1500)}\n\nLa RÉPONSE répond-elle vraiment à la QUESTION, sans inventer de citation ? Réponds UNIQUEMENT "oui" ou "non".`,
+      contents: `QUESTION : ${question}\nSUJET : ${topic || '-'}\nRÉPONSE : ${answer.slice(0, 1500)}\n\nLa RÉPONSE parle-t-elle du même sujet que la QUESTION ? Réponds "non" SEULEMENT si elle parle clairement d'autre chose. Réponds UNIQUEMENT "oui" ou "non".`,
       config: { temperature: 0 },
     });
     return !/^\s*non/i.test(r.text || '');
