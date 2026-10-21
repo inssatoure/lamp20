@@ -47,6 +47,13 @@ async function generateChat(params) {
       return await ai.models.generateContent({ ...params, model });
     } catch (err) {
       const msg = String(err?.message || err);
+      // Free keys often have no Google Search quota: drop the tool and retry
+      if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg) && params.config?.tools) {
+        console.warn('[LAMP Bot] Search tool quota hit, retrying without Google Search');
+        const { tools, ...rest } = params.config;
+        params = { ...params, config: rest };
+        try { return await ai.models.generateContent({ ...params, model }); } catch (e2) { err = e2; }
+      }
       if (!/503|429|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand/i.test(msg)) throw err;
       console.warn(`[LAMP Bot] ${model} busy, retrying...`);
       await new Promise(r => setTimeout(r, 3000));
@@ -554,10 +561,11 @@ async function getMemoryContext() {
 
 function isWolof(text) {
   const markers = ['nanga def', 'jërëjëf', 'ndax', 'bëgg', 'xam', 'wax', 'jàng',
-    'liggéey', 'yàlla', 'serigne', 'ndeysaan', 'mbokk', 'touba', 'muñ', 'baal',
+    'liggéey', 'yàlla', 'ndeysaan', 'mbokk', 'muñ', 'baal', 'naka', 'nga', 'mooy', 'dafa', 'dina', 'ci', 'ak', 'yi', 'bi',
     'xassida', 'ndawsi', 'dama', 'lii', 'loolu', 'degg', 'waaw', 'nit', 'jëf', 'def'];
   const lower   = text.toLowerCase();
-  const matches = markers.filter(w => lower.includes(w)).length;
+  const words   = new Set(lower.split(/[^a-zàâçéèêëîïôûùüÿñæœ]+/i));
+  const matches = markers.filter(w => w.includes(' ') ? lower.includes(w) : words.has(w)).length;
   return matches >= 2 || (matches >= 1 && text.length < 50);
 }
 
