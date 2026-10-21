@@ -20,8 +20,8 @@ import http from 'http';
 const TELEGRAM_TOKEN = '8718768067:AAGKmBVB67nK6feFZn8Arv3cuySBLpfmW9A';
 const GEMINI_API_KEY = 'AIzaSyCfBSOJw5i2ajEBHhZB4KKGadBxAKP9wj8';
 
-const CHAT_MODEL = 'gemini-3-flash-preview';
-const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+const CHAT_MODEL = 'gemini-3.8-flash';
+const TTS_MODEL = 'gemini-3.8-flash-tts';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAWcGI0OZsHPh-IhglG_4MI9ZcQkkmUKw0",

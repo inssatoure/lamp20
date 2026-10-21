@@ -13,8 +13,8 @@ import http from 'http';
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const CHAT_MODEL = 'gemini-3-flash-preview';
-const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+const CHAT_MODEL = 'gemini-3.8-flash';
+const TTS_MODEL = 'gemini-3.8-flash-tts';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAWcGI0OZsHPh-IhglG_4MI9ZcQkkmUKw0",
