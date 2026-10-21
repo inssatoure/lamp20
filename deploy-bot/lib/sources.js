@@ -288,7 +288,7 @@ export function searchHadith(mots, recueil = null, limit = 4) {
     }
   }
   return hits.sort((a, b) => b.sc - a.sc).slice(0, limit).map(({ key, h }) => ({
-    recueil: HADITH_COLLECTIONS[key], numero: h.n, texte: h.text.slice(0, 900), ...(h.grade ? { authenticite: h.grade } : {}),
+    recueil: HADITH_COLLECTIONS[key], numero: h.n, texte: h.text.length > 600 ? h.text.slice(0, 600) + '…' : h.text, ...(h.grade ? { authenticite: h.grade } : {}),
   }));
 }
 

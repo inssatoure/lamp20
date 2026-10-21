@@ -24,7 +24,7 @@ message (texte ou vocal)
 | `lib/prompt.js` | **Qui est LAMP et ses règles** — c'est ici qu'on change sa façon de parler |
 | `lib/brain.js` | Les 4 étapes ci-dessus |
 | `lib/sources.js` | Lecture du Coran, des hadiths et des Khassaids |
-| `lib/ai.js` | Appels aux modèles : délai max, modèle suivant si quota épuisé, Groq en secours |
+| `lib/ai.js` | Appels aux modèles : délai max, modèle suivant si quota épuisé, Groq en secours (avec accès à la bibliothèque) et Whisper pour les vocaux |
 | `lib/config.js` | Réglages (modèles, délais, dossiers) |
 | `lib/voice.js` · `lib/history.js` · `lib/telegram-format.js` | Voix · mémoire des conversations · messages Telegram |
 
@@ -59,7 +59,8 @@ Le dossier de données est trouvé tout seul : celui qui contient `Textes_Arabes
 
 - Messages longs découpés (limite Telegram 4096), mise en forme HTML sûre avec repli en texte simple
 - Une question à la fois par conversation (pas de mélange quand on envoie plusieurs messages)
-- Chaque appel IA a un délai maximum de 60 s ; modèle suivant si le quota est épuisé ; Groq en dernier recours
+- Chaque appel IA a un délai maximum de 45 s ; modèle suivant si le quota est épuisé ; Groq en dernier recours
+  (gratuit : 8 000 tokens/min par modèle, soit environ 3 réponses/min — suffisant en secours ; en wolof Groq est plus faible que Gemini)
 - Le bot ne s'arrête pas sur une erreur inattendue ; il relance la connexion Telegram si le réseau coupe
 - Il supprime un ancien webhook au démarrage et signale clairement le conflit « 409 » (deux bots sur le même token)
 - Les messages reçus pendant que le bot était éteint (plus de 2 min) sont ignorés au redémarrage

@@ -3,7 +3,7 @@
 //   2. retrieve   : Coran + hadiths + Khassaids from the verified library (no AI)
 //   3. answer     : the model writes the answer and may consult the library again (tools)
 //   4. check      : every reference in the answer must come from the library, otherwise it is rewritten
-import { generate, generateText, parseJson } from './ai.js';
+import { generate, generateText, parseJson, groqTranscribe } from './ai.js';
 import { buildContext } from './prompt.js';
 import { MAX_TOOL_ROUNDS } from './config.js';
 import * as S from './sources.js';
@@ -171,7 +171,7 @@ export async function answer(text, history = []) {
 
   const refs = new Set();
   const [sources, notes] = await Promise.all([retrieve(u, refs), S.reviewedNotes().catch(() => '')]);
-  const systemInstruction = buildContext({ ...u, khassaid: u.khassaid ? S.khassaidInfo(u.khassaid).titre : '', sources, notes, khassaidList: S.listKhassaids() });
+  const systemInstruction = buildContext({ ...u, khassaid: u.khassaid ? S.khassaidInfo(u.khassaid).titre : '', sources, notes });
 
   const contents = [
     ...history.slice(-8).map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
@@ -181,7 +181,11 @@ export async function answer(text, history = []) {
 
   let reply = '';
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const r = await generate({ contents, config: round === MAX_TOOL_ROUNDS ? { systemInstruction, temperature: 0.3 } : config }, 'answer');
+    const r = await generate({
+      contents,
+      config: round === MAX_TOOL_ROUNDS ? { systemInstruction, temperature: 0.3 } : config,
+      toolRunner: (name, args) => runTool(name, args, refs),     // lets Groq use the library too
+    }, 'answer');
     const calls = r.groq ? [] : (r.functionCalls || []);
     if (!calls.length) { reply = (r.text || '').trim(); break; }
     contents.push(r.candidates[0].content);
@@ -208,6 +212,16 @@ export async function answer(text, history = []) {
 
 /** Speech → text (Gemini hears Wolof, French, Arabic). */
 export async function transcribe(buffer, mimeType) {
+  try {
+    const t = await transcribeGemini(buffer, mimeType);
+    if (t) return t;
+  } catch (e) {
+    console.warn('[Brain] Gemini transcription failed:', e.message.slice(0, 80));
+  }
+  return groqTranscribe(buffer, mimeType);     // Whisper backup
+}
+
+async function transcribeGemini(buffer, mimeType) {
   return generateText({
     contents: [{ role: 'user', parts: [
       { inlineData: { mimeType, data: buffer.toString('base64') } },

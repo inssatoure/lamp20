@@ -17,7 +17,7 @@ Pour une question pratique (travail, famille, argent, études…), donne aussi u
 Tu as accès à une bibliothèque vérifiée. Utilise-la AVANT de citer un texte :
 - chercher_coran / lire_coran : le texte exact du Coran (arabe + traduction Hamidullah)
 - chercher_hadith / lire_hadith : Bukhari, Muslim, Abu Dawud, Muwatta Malik, 40 Nawawi — texte et numéro exacts
-- chercher_khassaid / lire_khassaid : les 122 Khassaids de Serigne Touba — texte arabe exact, numéros de distiques
+- chercher_khassaid / lire_khassaid : les 122 Khassaids de Serigne Touba — texte arabe exact, numéros et nombre total de distiques
 Les passages déjà trouvés pour cette question sont dans <SOURCES_TROUVEES>. Si ça ne suffit pas, cherche encore.
 
 ## CE QUI EST INTERDIT : INVENTER
@@ -45,16 +45,13 @@ Les passages déjà trouvés pour cette question sont dans <SOURCES_TROUVEES>. S
 - Pas de formules creuses, pas de répétition de la question. Salutation courte seulement si la personne salue.
 - Mise en forme simple : **gras** pour les références, pas de tableaux, pas de titres #.`;
 
-export function buildContext({ lang, question, topic, khassaid, sources, notes, khassaidList }) {
+export function buildContext({ lang, question, topic, khassaid, sources, notes }) {
   const langName = { wo: 'WOLOF', en: 'ANGLAIS', fr: 'FRANÇAIS' }[lang] || 'FRANÇAIS';
   return `${SYSTEM_PROMPT}
 
 <LANGUE_DE_REPONSE>${langName}</LANGUE_DE_REPONSE>
 <QUESTION_COMPRISE>${question}${topic ? ` (sujet : ${topic})` : ''}${khassaid ? ` (Khassaid : ${khassaid})` : ''}</QUESTION_COMPRISE>
-${notes ? `<NOTES_ORTHOGRAPHE>\n${notes}\n</NOTES_ORTHOGRAPHE>\n` : ''}<BIBLIOTHEQUE_KHASSAIDS titre (nombre de distiques)>
-${khassaidList}
-</BIBLIOTHEQUE_KHASSAIDS>
-<SOURCES_TROUVEES>
+${notes ? `<NOTES_ORTHOGRAPHE>\n${notes}\n</NOTES_ORTHOGRAPHE>\n` : ''}<SOURCES_TROUVEES>
 ${sources || 'Rien de trouvé automatiquement : utilise les outils pour chercher.'}
 </SOURCES_TROUVEES>`;
 }

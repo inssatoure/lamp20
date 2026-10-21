@@ -35,7 +35,7 @@ export const MODELS = {
   tts: 'gemini-3.8-flash-tts',
   embed: 'gemini-embedding-001',
 };
-export const GROQ_MODELS = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'openai/gpt-oss-20b'];
+export const GROQ_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
 
 export const TTS_VOICE = 'Orus';
 export const AI_TIMEOUT_MS = 45_000;      // one answer call never waits longer than this
