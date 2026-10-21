@@ -92,21 +92,32 @@ export function khassaidInfo(stemName) {
   return k ? { titre: k.title, nombre_de_distiques: k.verses.length } : null;
 }
 
-/** Exact verses from the file. from/to are 1-based and inclusive. */
-export function readKhassaid(nameOrText, from = 1, to = null) {
+/**
+ * Exact verses from the file. from/to are 1-based and inclusive.
+ * Negative numbers count from the end: -1 = last distique, (-3, -1) = the last three.
+ * max = how many distiques may be returned at once (40 for the AI, more for direct reading).
+ */
+export function readKhassaid(nameOrText, from = 1, to = null, max = 40) {
   if (!KHASSAIDS.size) loadKhassaidFiles();
   const stemName = KHASSAIDS.has(nameOrText) ? nameOrText : findKhassaid(nameOrText);
   if (!stemName) return { erreur: `Khassaid introuvable dans la bibliothèque : "${nameOrText}"` };
   const k = KHASSAIDS.get(stemName);
   const total = k.verses.length;
-  const start = Math.max(1, Math.min(Number(from) || 1, total));
-  const end = Math.max(start, Math.min(Number(to) || start + 9, total, start + 39));   // max 40 at once
-  if (Number(from) > total) {
-    return { titre: k.title, nombre_de_distiques: total, erreur: `Ce Khassaid n'a que ${total} distiques.` };
+  const abs = (n) => (Number(n) < 0 ? total + Number(n) + 1 : Number(n));
+  let start = from == null ? 1 : abs(from);
+  let end = to == null ? (Number(from) < 0 ? total : start + 9) : abs(to);
+  if (start > total || (Number(from) > 0 && Number(from) > total)) {
+    return { titre: k.title, nombre_de_distiques: total, erreur: `Ce Khassaid n'a que ${total} distiques : le distique ${from} n'existe pas.` };
   }
+  start = Math.max(1, start);
+  end = Math.max(start, Math.min(end, total));
+  const truncated = end - start + 1 > max;
+  if (truncated) end = start + max - 1;
   return {
     titre: k.title,
     nombre_de_distiques: total,
+    premier: start, dernier: end,
+    ...(truncated ? { suite: `Texte limité à ${max} distiques. La suite commence au distique ${end + 1}.` } : {}),
     distiques: k.verses.slice(start - 1, end).map(([a, b], i) => ({ numero: start + i, texte: `${a}\n${b}` })),
   };
 }

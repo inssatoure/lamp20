@@ -39,7 +39,9 @@ Analyse le message (dans le contexte de l'historique) et réponds en JSON :
 - mots_cles : 3 à 6 mots-clés FRANÇAIS pour chercher dans les hadiths (ex: "patience épreuve endurance").
 - coran : 0 à 3 références "sourate:verset" de versets qui parlent DIRECTEMENT du sujet (ex: ["2:153","2:155"]). Seulement celles dont tu es sûr, sinon [].
 - texte_seul : true seulement si la personne veut juste lire le texte d'un Khassaid sans explication.
-- debut / fin : numéros de distiques demandés (ex: "le premier vers" → 1 et 1 ; "les 10 premiers" → 1 et 10), sinon null.`,
+- debut / fin : distiques demandés. Exemples : "le premier vers" → 1 et 1 ; "les 10 premiers" → 1 et 10 ;
+  "du vers 20 au vers 30" → 20 et 30 ; "le dernier vers" → -1 et -1 ; "les 3 derniers" → -3 et -1 ;
+  "le Khassaid en entier" / "tout" → 1 et 100000. Sinon null.`,
     config: { temperature: 0.1, responseMimeType: 'application/json' },
   }, 'light', true);
   try {
@@ -75,7 +77,7 @@ async function retrieve(u, refs) {
   const parts = [];
   const tasks = [];
   if (u.khassaid) {
-    const r = S.readKhassaid(u.khassaid, u.debut || 1, u.fin || (u.debut ? u.debut : 10));
+    const r = S.readKhassaid(u.khassaid, u.debut ?? 1, u.fin ?? (u.debut != null ? u.debut : 10));
     (r.distiques || []).forEach((d) => refs.add(`distique ${d.numero}`));
     if (r.nombre_de_distiques) refs.add(String(r.nombre_de_distiques));
     parts.push(fmtKhassaid(r));
@@ -118,7 +120,7 @@ const TOOLS = [{
       parameters: { type: 'object', properties: { recueil: { type: 'string' }, numero: { type: 'integer' } }, required: ['recueil', 'numero'] } },
     { name: 'chercher_khassaid', description: 'Cherche dans les Khassaids de Serigne Touba les distiques qui parlent d\'un sujet (recherche par le sens).',
       parameters: { type: 'object', properties: { sujet: { type: 'string' } }, required: ['sujet'] } },
-    { name: 'lire_khassaid', description: 'Texte arabe exact de distiques d\'un Khassaid (max 40) et son nombre total de distiques.',
+    { name: 'lire_khassaid', description: 'Texte arabe exact de distiques d\'un Khassaid (max 40) et son nombre total de distiques. Nombres négatifs = depuis la fin : debut -1 et fin -1 = dernier distique ; debut -3 et fin -1 = les 3 derniers.',
       parameters: { type: 'object', properties: { titre: { type: 'string' }, debut: { type: 'integer' }, fin: { type: 'integer' } }, required: ['titre'] } },
   ],
 }];
@@ -164,9 +166,12 @@ export async function answer(text, history = []) {
 
   // Reading a Khassaid text only: served straight from the file, no AI involved.
   if (u.texte_seul) {
-    const r = S.readKhassaid(u.khassaid, u.debut || 1, u.fin || (u.debut ? u.debut : 10));
-    const body = (r.distiques || []).map((d) => `${d.numero}. ${d.texte.replace('\n', '\n    ')}`).join('\n\n');
-    return { lang: u.lang, direct: true, text: `📖 **${r.titre}** — distiques ${r.distiques?.[0]?.numero || ''}${r.distiques?.length > 1 ? `-${r.distiques.at(-1).numero}` : ''} sur ${r.nombre_de_distiques}${r.erreur ? `\n${r.erreur}` : ''}\n\n${body}` };
+    const r = S.readKhassaid(u.khassaid, u.debut ?? 1, u.fin ?? (u.debut != null ? u.debut : 10), 150);
+    if (!r.distiques) return { lang: u.lang, direct: true, text: r.erreur };
+    const body = r.distiques.map((d) => `${d.numero}. ${d.texte.replace('\n', '\n    ')}`).join('\n\n');
+    const range = r.premier === r.dernier ? `distique ${r.premier}` : `distiques ${r.premier} à ${r.dernier}`;
+    return { lang: u.lang, direct: true,
+      text: `📖 **${r.titre}** — ${range} sur ${r.nombre_de_distiques}\n\n${body}${r.suite ? `\n\n➡️ ${r.suite}` : ''}` };
   }
 
   const refs = new Set();
