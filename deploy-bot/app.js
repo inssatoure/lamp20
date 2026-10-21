@@ -35,6 +35,22 @@ if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
 
 const CHAT_MODEL = 'gemini-3.8-flash';
 const TTS_MODEL  = 'gemini-3.8-flash-tts';
+const FALLBACK_MODEL = 'gemini-3.6-flash';
+
+// Retry on overload (503/429), then switch to the backup model
+async function generateChat(params) {
+  for (const model of [params.model, params.model, FALLBACK_MODEL]) {
+    try {
+      return await ai.models.generateContent({ ...params, model });
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (!/503|429|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand/i.test(msg)) throw err;
+      console.warn(`[LAMP Bot] ${model} busy, retrying...`);
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+  throw new Error('All Gemini models busy');
+}
 
 const firebaseConfig = {
   apiKey: "AIzaSyAWcGI0OZsHPh-IhglG_4MI9ZcQkkmUKw0",
@@ -593,7 +609,7 @@ async function getAIResponse(userText, chatId) {
   const frInstruction = fullInstruction + `\n\nIMPORTANT: Réponds en FRANÇAIS. Inclus les références Khassaid et Coran du contexte bibliothèque. Pour les questions générales ou factuelles, utilise toutes tes connaissances disponibles et réponds complètement.`;
 
   console.log(`[Debug] Calling generateContent (French) for text: ${userText.substring(0, 30)}`);
-  const frResponse = await ai.models.generateContent({
+  const frResponse = await generateChat({
     model: CHAT_MODEL,
     contents,
     config: {
@@ -607,7 +623,7 @@ async function getAIResponse(userText, chatId) {
 
   // Step 2: If user writes Wolof, translate to pure Wolof
   if (userWantsWolof) {
-    const woResponse = await ai.models.generateContent({
+    const woResponse = await generateChat({
       model: CHAT_MODEL,
       contents: `Translate this French text to pure Wolof (Wolof bu koor). Rules:
 - Use authentic Wolof, minimize French loanwords
@@ -726,7 +742,7 @@ function downloadFile(url) {
 // ─── TRANSCRIBE ─────────────────────────────────────────────────────────────────
 
 async function transcribeVoice(fileBuffer, mimeType) {
-  const response = await ai.models.generateContent({
+  const response = await generateChat({
     model: CHAT_MODEL,
     contents: {
       parts: [
