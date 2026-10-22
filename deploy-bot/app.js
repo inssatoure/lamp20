@@ -37,7 +37,6 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, {
 // Started at the END of this file, once every handler is registered (no message lost).
 
 // ─── polling health ──────────────────────────────────────────────────────────
-let restarting = false;
 bot.on('polling_error', async (err) => {
   const msg = err?.message || String(err);
   if (/409|Conflict/i.test(msg)) {
@@ -48,15 +47,9 @@ bot.on('polling_error', async (err) => {
     console.error('[LAMP] 401: TELEGRAM_TOKEN is invalid or revoked. Exiting.');
     process.exit(1);
   }
-  console.warn('[LAMP] polling error:', msg.slice(0, 160));
-  if (/EFATAL/i.test(msg) && !restarting) {          // network drop: restart polling cleanly
-    restarting = true;
-    try { await bot.stopPolling({ cancel: true }); } catch { /* ignore */ }
-    setTimeout(async () => {
-      try { await bot.startPolling({ restart: true }); console.log('[LAMP] polling restarted'); } catch (e) { console.error('[LAMP] restart failed:', e.message); }
-      restarting = false;
-    }, 5000);
-  }
+  // Network drops (EFATAL…): node-telegram-bot-api polls again by itself. Never restart polling
+  // here: that would run a second polling loop next to the first one (endless 409 Conflict).
+  console.warn('[LAMP] polling error (the library retries by itself):', msg.slice(0, 160));
 });
 
 setInterval(() => console.log(`[LAMP] alive — ${new Date().toISOString()} — ${activeChats()} chats`), 5 * 60_000).unref();

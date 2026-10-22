@@ -332,9 +332,19 @@ export async function transcribe(buffer, mimeType) {
   } catch (e) {
     console.warn('[Brain] Gemini transcription failed:', e.message.slice(0, 80));
   }
-  if (!raw) raw = await elevenTranscribe(buffer, mimeType);               // knows Wolof
-  if (!raw) raw = await groqTranscribe(buffer, mimeType, VOICE_WORDS);     // Whisper, last resort
-  return raw ? fixTranscript(raw) : '';
+  raw = cleanTranscript(raw);
+  if (!raw) raw = cleanTranscript(await elevenTranscribe(buffer, mimeType));               // knows Wolof
+  if (!raw) raw = cleanTranscript(await groqTranscribe(buffer, mimeType, VOICE_WORDS));     // Whisper, last resort
+  if (!raw) return '';
+  const fixed = await fixTranscript(raw);
+  console.log(`[Voice] heard "${raw.slice(0, 120)}"${fixed !== raw ? ` → corrected "${fixed.slice(0, 120)}"` : ''}`);
+  return fixed;
+}
+
+// "[Silence]", "(inaudible)", "[Musique]"… are not questions
+function cleanTranscript(t) {
+  const s = String(t || '').replace(/[[(][^\])]{0,30}[\])]/g, ' ').replace(/\s+/g, ' ').trim();
+  return s.replace(/[^\p{L}\p{N}]/gu, '').length >= 2 ? s : '';
 }
 
 async function transcribeGemini(buffer, mimeType) {
