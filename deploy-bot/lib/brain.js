@@ -22,6 +22,27 @@ export function guessLang(text) {
   return 'fr';
 }
 
+// "Lis-moi le dernier vers de X", "tous les vers de X", "explique X"… read from the words themselves:
+// the understanding model sometimes gets these wrong, and they decide between copying the library
+// text and explaining it.
+const EXPLAIN = /(expli|leeral|firi|parle|wax ma|wax ci|connais|xam nga|sens|signifi|enseign|pourquoi|comment|teach|explain|meaning)/i;
+const NUM = '(\\d{1,3})';
+export function readingRequest(text) {
+  const t = String(text).toLowerCase();
+  if (EXPLAIN.test(t)) return { texte_seul: false };
+  let m;
+  const read = /(écri|ecri|lis\b|lire|donne|montre|affiche|récite|recite|bind|jàng|jang|vers|distique|bëyit|beyit)/i.test(t);
+  if (!read) return null;
+  if (/(tous les|ensemble des|en entier|tout le|toute la|texte complet|complet|lépp|yépp|yepp)/.test(t)) return { texte_seul: true, debut: 1, fin: 100000 };
+  if ((m = t.match(new RegExp(`${NUM}\\s*derniers`)))) return { texte_seul: true, debut: -Number(m[1]), fin: -1 };
+  if (/dernier/.test(t)) return { texte_seul: true, debut: -1, fin: -1 };
+  if ((m = t.match(new RegExp(`${NUM}\\s*premiers`)))) return { texte_seul: true, debut: 1, fin: Number(m[1]) };
+  if ((m = t.match(new RegExp(`(?:du|de|vers|distique)\\s*${NUM}\\s*(?:au|à|a|-)\\s*(?:vers\\s*|distique\\s*)?${NUM}`)))) return { texte_seul: true, debut: Number(m[1]), fin: Number(m[2]) };
+  if (/premier/.test(t)) return { texte_seul: true, debut: 1, fin: 1 };
+  if ((m = t.match(new RegExp(`(?:vers|distique|bëyit|beyit)\\s*(?:n°|numéro|no\\.?)?\\s*${NUM}`)))) return { texte_seul: true, debut: Number(m[1]), fin: Number(m[1]) };
+  return null;
+}
+
 export async function understand(text, history) {
   const fallback = {
     lang: guessLang(text), question: text, topic: '', khassaid: S.findKhassaid(text) || '',
@@ -32,13 +53,13 @@ export async function understand(text, history) {
 
 Analyse le message (dans le contexte de l'historique) et réponds en JSON :
 {"lang":"fr|wo|en", "question":"...", "topic":"...", "khassaid":"...", "mots_cles":"...", "coran":[], "texte_seul":false, "debut":null, "fin":null}
-- lang : langue voulue pour la RÉPONSE. "wo" si le message est en wolof ou demande le wolof. "Serigne Touba", "Khassaid", "Mouride" sont des noms propres, pas du wolof.
-- question : la question reformulée en français, complète et autonome (résous les suites comme "explique le premier vers" grâce à l'historique).
+- lang : langue voulue pour la RÉPONSE = la langue du message : "fr" français, "en" anglais, "wo" wolof (ou si la personne demande une langue précise). "Serigne Touba", "Khassaid", "Mouride", les titres de Khassaids sont des noms propres : ils ne donnent pas la langue. Si le message ne contient qu'un nom ou un titre (ex. "Jawartu"), garde la langue des messages précédents.
+- question : la question reformulée en français, complète et autonome (wolof : « leeral » = expliquer, « firi » = traduire/expliquer, « wax ma ci » = parle-moi de, « nanga def » = comment vas-tu) (résous les suites comme "explique le premier vers" grâce à l'historique).
 - topic : le sujet en 3 à 7 mots.
 - khassaid : titre du Khassaid concerné (message ou historique), sinon "".
 - mots_cles : 3 à 6 mots-clés FRANÇAIS pour chercher dans les hadiths (ex: "patience épreuve endurance").
 - coran : 0 à 3 références "sourate:verset" de versets qui parlent DIRECTEMENT du sujet (ex: ["2:153","2:155"]). Seulement celles dont tu es sûr, sinon [].
-- texte_seul : true seulement si la personne veut juste lire le texte d'un Khassaid sans explication.
+- texte_seul : true seulement si la personne veut juste lire le texte d'un Khassaid sans explication (« écris / lis / donne-moi les vers », « tous les vers »). false si elle veut comprendre : « explique », « parle-moi de », « leeral ma », « firi », « wax ma ci », « tu connais ».
 - debut / fin : distiques demandés. Exemples : "le premier vers" → 1 et 1 ; "les 10 premiers" → 1 et 10 ;
   "du vers 20 au vers 30" → 20 et 30 ; "le dernier vers" → -1 et -1 ; "les 3 derniers" → -3 et -1 ;
   "le Khassaid en entier" / "tout" → 1 et 100000. Sinon null.`,
@@ -47,6 +68,8 @@ Analyse le message (dans le contexte de l'historique) et réponds en JSON :
   try {
     const o = parseJson(raw);
     const khassaid = S.findKhassaid(o.khassaid) || S.findKhassaid(text) || '';
+    const asked = readingRequest(text);                       // clear wording beats the model's guess
+    if (asked && khassaid) Object.assign(o, asked);
     return {
       lang: ['fr', 'wo', 'en'].includes(o.lang) ? o.lang : fallback.lang,
       question: String(o.question || text).trim(),
@@ -198,7 +221,8 @@ N'invente rien. Réponds uniquement par le carnet.`,
 // Arabic from memory. Every Arabic passage of 3+ words is checked against the library: exact → kept,
 // miscopied → replaced by the library text, unknown → removed. Common formulas are allowed.
 const AR = '\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF';
-const ARABIC_RUN = new RegExp(`[${AR}](?:[${AR}\\s\\u200c-\\u200f]|[A-Za-z](?=[${AR}]))*`, 'g');
+// one line at a time: a quote written over two lines is two passages (two hemistichs)
+const ARABIC_RUN = new RegExp(`[${AR}](?:[${AR} \\t\\u00a0\\u200c-\\u200f]|[A-Za-z](?=[${AR}]))*`, 'g');
 const FORMULAS = ['صلى الله عليه وسلم', 'بسم الله الرحمن الرحيم', 'السلام عليكم ورحمة الله وبركاته', 'سبحانه وتعالى',
   'رضي الله عنه', 'رحمه الله', 'إن شاء الله', 'الحمد لله رب العالمين', 'لا إله إلا الله محمد رسول الله', 'الله أكبر',
   'لا حول ولا قوة إلا بالله', 'جزاك الله خيرا', 'عليه السلام', 'خادم الرسول', 'سبحان الله', 'أستغفر الله'].map(S.arabicSkeleton);
@@ -230,11 +254,14 @@ export function checkArabic(reply) {
 export async function answer(text, history = [], person = {}) {
   const t0 = Date.now();
   const u = await understand(text, history);
+  const guessed = guessLang(text);                       // clear Wolof / English words beat the model's guess
+  if (u.lang === 'fr' && (guessed === 'en' || guessed === 'wo')) u.lang = guessed;
   console.log(`[Brain] lang=${u.lang} khassaid=${u.khassaid || '-'} topic="${u.topic}" q="${u.question.slice(0, 80)}"`);
 
   // Reading a Khassaid text only: served straight from the file, no AI involved.
   if (u.texte_seul) {
-    const r = S.readKhassaid(u.khassaid, u.debut ?? 1, u.fin ?? (u.debut != null ? u.debut : 10), 150);
+    // the whole text when asked ("tous les vers", "en entier"): Telegram splits it into several messages
+    const r = S.readKhassaid(u.khassaid, u.debut ?? 1, u.fin ?? (u.debut != null ? u.debut : 10), 1000);
     if (!r.distiques) return { lang: u.lang, direct: true, text: r.erreur };
     const body = r.distiques.map((d) => `${d.numero}. ${d.texte.replace('\n', '\n    ')}`).join('\n\n');
     const range = r.premier === r.dernier ? `distique ${r.premier}` : `distiques ${r.premier} à ${r.dernier}`;
@@ -255,6 +282,8 @@ export async function answer(text, history = [], person = {}) {
   let reply = '';
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const r = await generate({
+      deadline: t0 + 30_000,                                     // one Gemini budget for the whole answer (all rounds)
+      preferGroq: Date.now() - t0 > 30_000,                      // Google too slow for this answer: finish with Groq
       contents,
       config: round === MAX_TOOL_ROUNDS ? { systemInstruction, temperature: 0.3 } : config,
       toolRunner: (name, args) => runTool(name, args, refs),     // lets Groq use the library too
@@ -265,6 +294,11 @@ export async function answer(text, history = [], person = {}) {
     const responses = [];
     for (const c of calls) responses.push({ functionResponse: { name: c.name, ...(c.id ? { id: c.id } : {}), response: await runTool(c.name, c.args || {}, refs) } });
     contents.push({ role: 'user', parts: responses });
+  }
+  if (!reply) {                                              // a model returned nothing: ask once more, Groq if needed
+    console.warn('[Brain] empty answer → one more try');
+    reply = (await generateText({ contents, config: { systemInstruction, temperature: 0.3 }, preferGroq: true }, 'answer', true))
+      || (await generateText({ contents, config: { systemInstruction, temperature: 0.3 } }, 'answer', true));
   }
   if (!reply) throw new Error('Empty answer');
 

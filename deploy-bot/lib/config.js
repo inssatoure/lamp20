@@ -48,6 +48,7 @@ export const MODELS = {
   embed: 'gemini-embedding-001',
 };
 export const GROQ_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
+export const GROQ_LIGHT_MODEL = 'openai/gpt-oss-20b';   // small fast tasks (understanding, corrections, memory)
 
 // Fixed voice for every language (same voice every time; temperature 0 keeps the delivery stable).
 export const VOICES = { fr: 'Orus', wo: 'Orus', en: 'Orus', ar: 'Orus' };

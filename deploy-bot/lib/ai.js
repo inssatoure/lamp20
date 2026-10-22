@@ -1,6 +1,6 @@
 // LAMP AI — model calls with timeout + automatic fallback (Gemini chain, then Groq)
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEYS, GROQ_API_KEY, ELEVENLABS_API_KEY, MODELS, GROQ_MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
+import { GEMINI_API_KEYS, GROQ_API_KEY, GROQ_LIGHT_MODEL, ELEVENLABS_API_KEY, MODELS, GROQ_MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
 
 // ─── Gemini keys: use the first working one, skip a key whose billing/permission fails ───
 const KEYS = GEMINI_API_KEYS.map((apiKey, i) => ({ n: i + 1, client: new GoogleGenAI({ apiKey }), deadUntil: 0 }));
@@ -52,42 +52,41 @@ const isExhausted = (model) => (exhausted.get(model) || 0) > Date.now();
 export async function generate(params, chain = 'answer') {
   const models = MODELS[chain] || MODELS.answer;
   const timeout = chain === 'light' ? LIGHT_TIMEOUT_MS : AI_TIMEOUT_MS;
-  // when Google is overloaded, don't keep trying model after model: after this budget, Groq answers
-  const deadline = Date.now() + (chain === 'light' ? 15_000 : 35_000);
+  // Small tasks (understanding, corrections, memory) go to Groq first: it answers in ~1 s and
+  // keeps the Gemini quota for the answers. Gemini is the backup for them.
+  if (chain === 'light' && GROQ_API_KEY && !params.toolRunner && typeof params.contents === 'string') {
+    const text = await groqChat({ ...params, _only: GROQ_LIGHT_MODEL }).catch(() => '');
+    if (text) return { text, groq: true };
+  }
+  // when Google is overloaded, don't keep trying: after this budget, Groq answers
+  const deadline = params.deadline || Date.now() + (chain === 'light' ? 12_000 : 30_000);
   let lastErr;
-  for (const key of liveKeys()) {
-    if (Date.now() > deadline && GROQ_API_KEY) break;
-  gemini: for (const model of models) {
+  const tries = params.preferGroq && GROQ_API_KEY ? [] : models.flatMap((model) => liveKeys().map((key) => ({ model, key })));
+  for (const { model, key } of tries) {                     // best model on every key first, then the next model
     const slot = `${key.n}:${model}`;
-    if (isExhausted(slot)) continue;
-    if (Date.now() > deadline && GROQ_API_KEY) { console.warn('[AI] Gemini too slow today → Groq'); break gemini; }
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const { toolRunner, _only, ...geminiParams } = params;
-        // the Gemini SDK rewrites tool schemas in place: give it a copy so Groq still gets clean ones
-        const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
-        return await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), timeout, model);
-      } catch (err) {
-        lastErr = err;
-        const msg = String(err?.message || err);
-        if (/API_KEY|PERMISSION_DENIED|\b40[123]\b|suspended|prepayment|depleted/i.test(msg) && !/\b429\b|RESOURCE_EXHAUSTED/.test(msg)) {
-          killKey(key, msg);   // key/account problem: no model will work with this key
-          break gemini;
-        }
-        if (isQuota(msg)) {
-          console.warn(`[AI] ${model} (key #${key.n}) quota exhausted → next`);
-          exhausted.set(slot, Date.now() + 10 * 60_000);
-          break;
-        }
-        if (!isBusy(msg)) { console.warn(`[AI] ${model} error (${msg.slice(0, 70)}) → next`); break; }
-        if (/timeout/i.test(msg)) { console.warn(`[AI] ${model} too slow → next model`); break; }
-        // overloaded: another model (or the next key) answers faster than waiting for this one
-        if (models.indexOf(model) < models.length - 1) { console.warn(`[AI] ${model} busy → next model`); break; }
-        console.warn(`[AI] ${model} busy (${msg.slice(0, 60)}) → retry`);
-        await sleep(2000);
+    if (isExhausted(slot) || key.deadUntil > Date.now()) continue;
+    if (Date.now() > deadline && GROQ_API_KEY) { console.warn('[AI] Gemini too slow today → Groq'); break; }
+    try {
+      const { toolRunner, _only, preferGroq, deadline: _d, ...geminiParams } = params;
+      // the Gemini SDK rewrites tool schemas in place: give it a copy so Groq still gets clean ones
+      const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
+      // never wait past the budget: a slow Google call is cut and Groq answers instead
+      const wait = GROQ_API_KEY ? Math.max(5_000, Math.min(timeout, deadline - Date.now())) : timeout;
+      return await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), wait, model);
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err?.message || err);
+      if (/API_KEY|PERMISSION_DENIED|\b40[123]\b|suspended|prepayment|depleted/i.test(msg) && !/\b429\b|RESOURCE_EXHAUSTED/.test(msg)) {
+        killKey(key, msg);                                     // key/account problem: no model will work with this key
+      } else if (isQuota(msg)) {
+        console.warn(`[AI] ${model} (key #${key.n}) quota exhausted → next`);
+        exhausted.set(slot, Date.now() + 10 * 60_000);
+      } else if (/timeout/i.test(msg)) {
+        console.warn(`[AI] ${model} too slow → next`);
+      } else {
+        console.warn(`[AI] ${model} (key #${key.n}) ${isBusy(msg) ? 'busy' : `error ${msg.slice(0, 60)}`} → next`);
       }
     }
-  }
   }
   if (GROQ_API_KEY) {
     const text = await groqChat(params);
@@ -95,8 +94,6 @@ export async function generate(params, chain = 'answer') {
   }
   throw lastErr || new Error('All models unavailable');
 }
-
-/** Same as generate() but returns plain text ('' on total failure if soft=true). */
 export async function generateText(params, chain = 'answer', soft = false) {
   try {
     const r = await generate(params, chain);
@@ -156,10 +153,15 @@ async function groqChat(params) {
       const msgs = [...messages];
       for (let round = 0; round <= 4; round++) {
         const withTools = tools.length && round < 4;
-        const msg = await groqCall(model, {
+        const body = {
           messages: msgs, temperature,
           ...(json ? { response_format: { type: 'json_object' } } : {}),
           ...(withTools ? { tools, tool_choice: 'auto' } : {}),
+        };
+        // Groq sometimes rejects its own JSON mode ("Failed to validate JSON"): ask again in plain text, we parse it
+        const msg = await groqCall(model, body).catch((e) => {
+          if (json && /validate JSON|json_validate/i.test(e.message)) { delete body.response_format; return groqCall(model, body); }
+          throw e;
         });
         if (withTools && msg.tool_calls?.length) {
           msgs.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });

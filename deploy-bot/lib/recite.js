@@ -9,7 +9,8 @@ import { MODELS, VOICES } from './config.js';
 import * as S from './sources.js';
 
 const AR = '؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿';
-const ARABIC_RUN = new RegExp(`[${AR}](?:[${AR}\\s\\u200c-\\u200f]|[A-Za-z](?=[${AR}]))*`, 'g');
+// one line at a time: a quote written over two lines is two passages (two hemistichs)
+const ARABIC_RUN = new RegExp(`[${AR}](?:[${AR} \\t\\u00a0\\u200c-\\u200f]|[A-Za-z](?=[${AR}]))*`, 'g');
 const MAX_RECITATIONS = 4;
 
 /** The Quran verses and Khassaid distiques quoted in a (checked) answer, in order, without duplicates. */

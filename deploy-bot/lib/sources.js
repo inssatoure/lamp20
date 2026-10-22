@@ -439,6 +439,7 @@ function arabicLines() {
     k.verses.forEach(([h1, h2], i) => {
       const item = { kind: 'khassaid', stem, title: k.title, n: i + 1, text: h2 && h2 !== '*' ? `${h1}\n${h2}` : h1 };
       for (const h of [h1, h2]) if (h && h !== '*') ARABIC_LINES.push({ text: h, skel: ARABIC_SKEL(h), ref: `${k.title} ${i + 1}`, item });
+      if (h2 && h2 !== '*') ARABIC_LINES.push({ text: `${h1} ${h2}`, skel: ARABIC_SKEL(h1 + h2), ref: `${k.title} ${i + 1}`, item });   // both hemistichs on one line
     });
   }
   return ARABIC_LINES;

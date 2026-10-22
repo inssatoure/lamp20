@@ -60,6 +60,8 @@ export function toSpeech(md, lang = 'fr', recited = false, max = 2500) {
     .replace(/\(?\s*ﷺ\s*\)?/g, ` (${pbuh}) `)
     .replace(new RegExp(`\\s*:?\\s*[«"]?\\s*[${AR}](?:[${AR}\\s/|]|[A-Za-z](?=[${AR}]))*\\s*[»"]?`, 'g'), (run) =>
       (run.replace(new RegExp(`[^${AR}]`, 'g'), '').length > 12 ? note : ' '))
+    .replace(/[’‘ʼ`]/g, "'").replace(/[“”]/g, '"')       // the voice stumbles on typographic apostrophes (L’exemple → « L… »)
+    .replace(/\bn°\s*/gi, { fr: 'numéro ', wo: 'numéro ', en: 'number ' }[lang] || 'numéro ')
     .replace(/\*\*|__|[*_`#>▎•]/g, '')
     .replace(/\((?:\d{1,3}:\d{1,3}|[^)]*n°\s*\d+[^)]*)\)/g, '')     // references are for reading, not hearing
     .replace(/\([^)]*(?:distique|b[ëe]yit|verset|sourate|\d+\s*:\s*\d+)[^)]*\)/gi, '')

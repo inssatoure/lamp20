@@ -4,6 +4,7 @@ import { Modality } from '@google/genai';
 import { withEachKey, withTimeout, groqTranscribe } from './ai.js';
 import { MODELS, VOICES } from './config.js';
 import { toSpeech } from './telegram-format.js';
+import * as S from './sources.js';
 
 function pcmToWav(pcm, sampleRate = 24000) {
   const h = Buffer.alloc(44);
@@ -36,22 +37,39 @@ async function looksFaithful(pcm, wav, say, lang) {
   const expected = say.length / 14;                          // ~14 characters per second of speech
   if (dur > expected * 1.7 + 6) return `audio trop long (${dur.toFixed(0)}s pour ~${expected.toFixed(0)}s)`;
   const heard = await groqTranscribe(wav, 'audio/wav').catch(() => '');
+  if (process.env.LAMP_DEBUG_VOICE) console.log('[Voice] heard:', heard);
   if (heard) {
     const arabicWords = (heard.match(/[\u0600-\u06FF]{2,}/g) || []).length;
-    if (arabicWords >= 3) return `de l'arabe a été prononcé (${arabicWords} mots)`;
+    if (arabicWords >= 3) {
+      // Whisper sometimes writes Wolof speech in Arabic letters. A real problem is when the voice
+      // recited a verse or a prayer: then what it heard matches the Quran or a Khassaid.
+      if (lang !== 'wo') return `de l'arabe a été prononcé (${arabicWords} mots)`;
+      const runs = heard.match(/[\u0600-\u06FF][\u0600-\u06FF\s]{12,}/g) || [];
+      if (runs.some((r) => S.verifyArabic(r.trim()).status !== 'unknown')) return 'un texte sacré a été récité par la voix';
+    }
     if (heard.length > say.length * 1.6 + 60) return 'texte prononcé plus long que le texte écrit';
     if (lang !== 'wo') {                                     // Whisper does not know Wolof: word check only in fr/en
-      const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
+      const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['’-]/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
       const written = norm(say);
-      const known = (w) => written.some((x) => x === w || (w.length > 4 && x.length > 4 && x.slice(0, 5) === w.slice(0, 5)));
+      // Arabic names are spelled many ways (Baqara/Bakara, Ahmadou/Amadou): compare their consonants
+      const sk = (w) => w.replace(/ou/g, 'u').replace(/q|kh/g, 'k').replace(/dh|th/g, 'd').replace(/sh|ch/g, 's')
+        .replace(/([^aeiouy])h/g, '$1').replace(/^h/, '').replace(/(.)\1+/g, '$1').replace(/(?!^)[aeiouy]/g, '');
+      const lev1 = (a, b) => {                                  // edit distance ≤ 1
+        if (Math.abs(a.length - b.length) > 1) return false;
+        let i = 0; while (i < a.length && a[i] === b[i]) i++;
+        return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i);
+      };
+      const close = (a, b) => a === b || (a.length > 3 && b.length > 3 && a.slice(0, 4) === b.slice(0, 4))
+        || (sk(a).length >= 3 && sk(b).length >= 3 && lev1(sk(a), sk(b)));
+      const known = (w) => written.some((x) => close(x, w));
       const extra = norm(heard).filter((w) => !known(w));
       // a speech model that "adds" something (a verse, a prayer) produces several unwritten words
       if (extra.length >= 3) return `mots non écrits prononcés : ${extra.slice(0, 6).join(', ')}`;
       // ...and one that skips a sentence can change who said what ("Allah dit : <next sentence>")
       const said = norm(heard);
-      const heardKnown = (w) => said.some((x) => x === w || (w.length > 4 && x.length > 4 && x.slice(0, 5) === w.slice(0, 5)));
+      const heardKnown = (w) => said.some((x) => close(x, w));
       const missing = written.filter((w) => !heardKnown(w));
-      if (missing.length >= 4) return `phrases sautées : ${missing.slice(0, 6).join(', ')}`;
+      if (missing.length >= 3) return `phrases sautées : ${missing.slice(0, 6).join(', ')}`;
     }
   }
   return '';
