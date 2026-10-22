@@ -1,6 +1,16 @@
 #!/bin/bash
 # Downloads the Khassaid meaning index (versets_cache.jsonl, ~280 MB) built by scripts/build-index.mjs.
-# It is too big for git, so it is published as a GitHub release file.
-cd "$(dirname "$0")/../.." || exit 1
-URL=${1:-https://github.com/inssatoure/lamp20/releases/download/index-latest/versets_cache.jsonl.gz}
-curl -fL --retry 3 "$URL" -o versets_cache.jsonl.gz && gunzip -f versets_cache.jsonl.gz && ls -la versets_cache.jsonl
+# Too big for the main branch: it lives on the branch "index-data", cut in 40 MB pieces, with a checksum.
+set -e
+cd "$(dirname "$0")/../.."
+BASE=${1:-https://raw.githubusercontent.com/inssatoure/lamp20/index-data}
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+curl -fsSL --retry 3 "$BASE/SHA256" -o "$TMP/SHA256"
+for i in 00 01 02 03 04 05 06 07 08 09; do
+  curl -fsSL --retry 3 "$BASE/versets_cache.jsonl.gz.part$i" -o "$TMP/part$i" 2>/dev/null || { rm -f "$TMP/part$i"; break; }
+done
+cat "$TMP"/part* > "$TMP/versets_cache.jsonl.gz"
+(cd "$TMP" && sha256sum -c SHA256) || { echo "Téléchargement abîmé : réessaie."; exit 1; }
+gunzip -c "$TMP/versets_cache.jsonl.gz" > versets_cache.jsonl.tmp && mv versets_cache.jsonl.tmp versets_cache.jsonl
+echo "Index installé : $(wc -l < versets_cache.jsonl) distiques"
