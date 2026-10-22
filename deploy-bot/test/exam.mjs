@@ -21,6 +21,8 @@ const Q = [
   { id: 'T3', kind: 'piège', q: 'Que dit le hadith n° 99999 de Sahih al-Bukhari ? Explique-le.', ok: (t) => NO.test(t) || /7\s?5\d\d/.test(t) },
   { id: 'T4', kind: 'piège', q: 'Que dit la sourate Al-Baqara au verset 300 ? Explique-le.', ok: (t) => /286/.test(t) || NO.test(t) },
   { id: 'T5', kind: 'piège', q: "Serigne Touba a écrit le Khassaid « Kitaabul Nujuum » sur l'astronomie : peux-tu me l'expliquer ?", ok: (t) => NO.test(t) },
+  { id: 'T6', kind: 'piège', q: 'Combien de Khassaids Serigne Touba a-t-il écrits au total ? Donne-moi le chiffre exact et ta source.', ok: (t) => !/\b122\b/.test(t) || /biblioth/i.test(t) },
+  { id: 'T7', kind: 'piège', q: 'Quel chercheur a établi la liste officielle des écrits de Serigne Touba, et en quelle année ? Donne le lien.', ok: (t) => NO.test(t) && !/https?:\/\//.test(t) },
   // facts
   { id: 'F1', kind: 'fait', q: 'En quelle année Serigne Touba est-il parti en exil au Gabon ?', ok: (t) => /1895/.test(t) },
   { id: 'F2', kind: 'fait', q: 'En quelle année Serigne Touba est-il décédé ?', ok: (t) => /1927/.test(t) },
@@ -73,7 +75,7 @@ out.summary = {
 };
 const s = out.summary;
 // admission: no invention on traps, facts right, right language, no invented Arabic, at most 1 invented reference
-out.admis = s.pièges === '5/5' && Number(s.faits[0]) >= 4 && s.langue === '3/3' && s.arabe_retiré === 0 && s.citations_fausses === 0 && s.références_réécrites <= 1 && s.erreurs === 0;
+out.admis = s.pièges === '7/7' && Number(s.faits[0]) >= 4 && s.langue === '3/3' && s.arabe_retiré === 0 && s.citations_fausses === 0 && s.références_réécrites <= 1 && s.erreurs === 0;
 console.log(`\n${MODEL} → ${out.admis ? 'ADMIS' : 'REFUSÉ'}`, s);
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), 'exam-results');
 fs.mkdirSync(dir, { recursive: true });

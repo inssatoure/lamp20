@@ -236,6 +236,9 @@ const FORMULAS = ['صلى الله عليه وسلم', 'بسم الله الرح
   'رضي الله عنه', 'رحمه الله', 'إن شاء الله', 'الحمد لله رب العالمين', 'لا إله إلا الله محمد رسول الله', 'الله أكبر',
   'لا حول ولا قوة إلا بالله', 'جزاك الله خيرا', 'عليه السلام', 'خادم الرسول', 'سبحان الله', 'أستغفر الله'].map(S.arabicSkeleton);
 
+// (accented words: \b does not work with é, so letter look-arounds and the u flag are used)
+const VAGUE_AUTHORITY = /(?<!\p{L})(?:(?:selon|d'après|d’après|établie?s? par|cité(?:e|s)? par|répertorié(?:e|s)? par|reconnue? par|admis par|attesté(?:e|s)? par)\s+(?:les|des|de nombreux|plusieurs|certains)?\s*(?:chercheurs|érudits|spécialistes|bibliographes|historiens|savants|universitaires|experts|biographes)|fait autorité|consensus (?:des|parmi|chez)|selon la tradition|la tradition (?:mouride )?(?:établit|affirme|rapporte que)|les (?:chercheurs|érudits|spécialistes|historiens) (?:ont|s'accordent|estiment|établissent))(?!\p{L})/iu;
+
 /** What the checks had to repair (per process): used by the exam and the quality tracking. */
 export const checkStats = { arabicFixed: 0, arabicRemoved: 0, refRewrites: 0 };
 
@@ -291,6 +294,13 @@ export function directAnswer(text, history = [], person = {}) {
     if (!r.versets) return { lang, direct: true, text: r.erreur };
     return { lang, direct: true, text: `📖 **Coran — ${r.sourate}**\n\n` +
       r.versets.map((v) => `**${v.reference}**\n${v.arabe}\n« ${v.francais} »`).join('\n\n') + `\n\n_Traduction : ${r.traduction}_` };
+  }
+  // the list of the library's Khassaids
+  if (/(liste|énum[eè]r|enumer|lister|quels sont|donne.{0,10}(?:tous|toutes)|tous les|combien de)\b.{0,40}(?:x|kh?|q)as+[aâ][iï]?d|(?:x|kh?|q)as+[aâ][iï]?d.{0,30}(?:dans ta base|dans ta biblioth|que tu (?:as|connais))/i.test(t) && !S.findKhassaid(t)) {
+    const all = S.listKhassaids().split(', ');
+    return { lang, direct: true, text: `📚 **Les ${all.length} Khassaids de ma bibliothèque** (nombre de distiques)\n` +
+      '_C\'est le contenu de ma bibliothèque, pas le nombre total des écrits de Serigne Touba._\n\n' +
+      all.map((x, i) => `${i + 1}. ${x}`).join('\n') };
   }
   // reading a Khassaid ("tous les vers de X", "le dernier vers de X"): no understanding step needed
   const stem = S.findKhassaid(t);
@@ -436,6 +446,18 @@ export async function answer(text, history = [], person = {}) {
       config: { systemInstruction, temperature: 0.2 },
     }, 'answer', true);
     if (fixed && unverifiedRefs(fixed, refs).length < bad.length) reply = fixed;
+  }
+  // Vague authority ("les chercheurs ont établi…", "selon la tradition…") is how a model dresses up a fact it
+  // invented: one rewrite without it.
+  if (VAGUE_AUTHORITY.test(reply)) {
+    checkStats.vagueRewrites = (checkStats.vagueRewrites || 0) + 1;
+    console.warn(`[Check] vague authority: "${reply.match(VAGUE_AUTHORITY)[0]}" → rewrite`);
+    const fixed = await generateText({
+      contents: [...contents, { role: 'model', parts: [{ text: reply }] },
+        { role: 'user', parts: [{ text: `Vérification : ta réponse appuie une information sur une autorité vague (« ${reply.match(VAGUE_AUTHORITY)[0]} »). Réécris ta réponse complète : retire toute affirmation qui ne vient pas de la bibliothèque (Coran, hadiths, Khassaids fournis), ne nomme aucun chercheur, livre, catalogue ou date que la bibliothèque ne donne pas, et si tu n'as pas de source dis simplement « Je n'ai pas de source pour cela dans ma bibliothèque ». Ne mentionne pas cette vérification.` }] }],
+      config: { systemInstruction, temperature: 0.2 },
+    }, 'answer', true);
+    if (fixed && !VAGUE_AUTHORITY.test(fixed)) reply = fixed;
   }
   reply = checkQuotes(checkArabic(reply));
   console.log(`[Brain] answered in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
