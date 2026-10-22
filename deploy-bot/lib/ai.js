@@ -51,14 +51,14 @@ export async function generate(params, chain = 'answer') {
       } catch (err) {
         lastErr = err;
         const msg = String(err?.message || err);
+        if (/API_KEY|PERMISSION_DENIED|403|401|402|billing|suspended|prepayment|depleted/i.test(msg)) {
+          killKey(key, msg);   // key/account problem: no model will work with this key
+          break gemini;
+        }
         if (isQuota(msg)) {
           console.warn(`[AI] ${model} (key #${key.n}) quota exhausted → next`);
           exhausted.set(slot, Date.now() + 10 * 60_000);
           break;
-        }
-        if (/API_KEY|PERMISSION_DENIED|403|401|402|billing|suspended|prepayment|depleted/i.test(msg)) {
-          killKey(key, msg);   // key/account problem: no model will work with this key
-          break gemini;
         }
         if (!isBusy(msg)) { console.warn(`[AI] ${model} error (${msg.slice(0, 70)}) → next`); break; }
         if (/timeout/i.test(msg)) { console.warn(`[AI] ${model} too slow → next model`); break; }

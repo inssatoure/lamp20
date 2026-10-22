@@ -9,10 +9,13 @@ const ROOT = process.env.LAMP_ROOT_DIR || path.resolve(path.dirname(new URL(impo
 const DIR = path.join(ROOT, 'Textes_Arabes_Serigne_Touba');
 const OUT = path.join(ROOT, 'versets_cache.jsonl');
 const MODEL = 'gemini-embedding-001';
-const BATCH = 100;
+const BATCH = 50;
 
-if (!process.env.GEMINI_API_KEY) { console.error('GEMINI_API_KEY manquant'); process.exit(1); }
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// one key or several (GEMINI_API_KEYS=k1,k2): on a quota error the next key is used
+const KEYS = `${process.env.GEMINI_API_KEYS || ''},${process.env.GEMINI_API_KEY || ''}`.split(',').map((k) => k.trim()).filter(Boolean);
+if (!KEYS.length) { console.error('GEMINI_API_KEY manquant'); process.exit(1); }
+const clients = KEYS.map((apiKey) => new GoogleGenAI({ apiKey }));
+let current = 0;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const title = (stem) => stem.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
@@ -33,13 +36,16 @@ for (let i = 0; i < items.length; i += BATCH) {
   const batch = items.slice(i, i + BATCH);
   for (let attempt = 1; ; attempt++) {
     try {
-      const r = await ai.models.embedContent({ model: MODEL, contents: batch.map((x) => x.c) });
+      const r = await clients[current].models.embedContent({ model: MODEL, contents: batch.map((x) => x.c) });
       r.embeddings.forEach((e, j) => out.write(JSON.stringify({ ...batch[j], e: e.values }) + '\n'));
       break;
     } catch (e) {
-      if (attempt >= 5) throw e;
-      console.warn(`lot ${i}: ${String(e.message).slice(0, 80)} → nouvel essai`);
-      await sleep(5000 * attempt);
+      if (attempt >= 12) throw e;
+      const msg = String(e.message);
+      current = (current + 1) % clients.length;                 // try the next key
+      const wait = current === 0 ? 30000 : 1000;                // every key tried: let the per-minute quota reset
+      console.warn(`\nlot ${i}: ${msg.slice(0, 60)} → clé ${current + 1}, attente ${wait / 1000}s`);
+      await sleep(wait);
     }
   }
   process.stdout.write(`\r${Math.min(i + BATCH, items.length)}/${items.length}`);
