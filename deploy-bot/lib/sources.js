@@ -86,6 +86,8 @@ export function findKhassaid(text) {
     if (shared === 1 && words.some((w) => w.startsWith(first) || first.startsWith(w))) return k;
   }
   // 4. sound-alike, for voice messages ("wakana hakan" → Wa kaana haqqan)
+  // only when the person is clearly talking about a poem (else "Salamalekum" sounds like "Halaman")
+  if (!/(kh?|x|q)a?s+a[iï]?da?|qasida|xasiida|po[eè]me|khassida|xassida/i.test(text)) return null;
   const [top] = soundAlikes(text, 1);
   return top && top.score >= 0.72 ? top.stem : null;
 }

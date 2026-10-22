@@ -51,7 +51,7 @@ export async function generate(params, chain = 'answer') {
       } catch (err) {
         lastErr = err;
         const msg = String(err?.message || err);
-        if (/API_KEY|PERMISSION_DENIED|403|401|402|billing|suspended|prepayment|depleted/i.test(msg)) {
+        if (/API_KEY|PERMISSION_DENIED|\b40[123]\b|suspended|prepayment|depleted/i.test(msg) && !/\b429\b|RESOURCE_EXHAUSTED/.test(msg)) {
           killKey(key, msg);   // key/account problem: no model will work with this key
           break gemini;
         }
@@ -62,6 +62,8 @@ export async function generate(params, chain = 'answer') {
         }
         if (!isBusy(msg)) { console.warn(`[AI] ${model} error (${msg.slice(0, 70)}) → next`); break; }
         if (/timeout/i.test(msg)) { console.warn(`[AI] ${model} too slow → next model`); break; }
+        // overloaded: another model (or the next key) answers faster than waiting for this one
+        if (models.indexOf(model) < models.length - 1) { console.warn(`[AI] ${model} busy → next model`); break; }
         console.warn(`[AI] ${model} busy (${msg.slice(0, 60)}) → retry`);
         await sleep(2000);
       }
