@@ -48,7 +48,7 @@ pas vérifiées (une note disait que Mawahibu a 212 vers, le texte en a 166). Se
 npm install
 node scripts/fetch-sources.mjs        # Coran + hadiths → sources/
 node scripts/cache_vectors.mjs        # index des Khassaids → versets_cache.jsonl (si absent)
-cp .env.example .env                  # puis mettre TELEGRAM_TOKEN, GEMINI_API_KEY (et GROQ_API_KEY)
+cp .env.example .env                  # puis mettre TELEGRAM_TOKEN, GEMINI_API_KEY (et GROQ_API_KEY, ELEVENLABS_API_KEY)
 node app.js                           # ou start.sh / pm2_setup.sh
 ```
 

@@ -16,6 +16,7 @@ for (const f of [path.join(APP_DIR, '.env'), path.join(APP_DIR, '..', '.env')]) 
 export const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 export const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+export const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';   // Wolof speech-to-text (Scribe)
 
 // Data folder = the first that contains the Khassaid texts:
 // LAMP_ROOT_DIR, the cPanel folder, the folder of app.js, or the repo root

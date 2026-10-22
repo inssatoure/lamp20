@@ -3,7 +3,7 @@
 //   2. retrieve   : Coran + hadiths + Khassaids from the verified library (no AI)
 //   3. answer     : the model writes the answer and may consult the library again (tools)
 //   4. check      : every reference in the answer must come from the library, otherwise it is rewritten
-import { generate, generateText, parseJson, groqTranscribe } from './ai.js';
+import { generate, generateText, parseJson, groqTranscribe, elevenTranscribe } from './ai.js';
 import { buildContext } from './prompt.js';
 import { MAX_TOOL_ROUNDS } from './config.js';
 import * as S from './sources.js';
@@ -229,7 +229,8 @@ export async function transcribe(buffer, mimeType) {
   } catch (e) {
     console.warn('[Brain] Gemini transcription failed:', e.message.slice(0, 80));
   }
-  if (!raw) raw = await groqTranscribe(buffer, mimeType, VOICE_WORDS);     // Whisper backup
+  if (!raw) raw = await elevenTranscribe(buffer, mimeType);               // knows Wolof
+  if (!raw) raw = await groqTranscribe(buffer, mimeType, VOICE_WORDS);     // Whisper, last resort
   return raw ? fixTranscript(raw) : '';
 }
 

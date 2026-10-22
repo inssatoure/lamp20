@@ -32,7 +32,7 @@ Le bot est dans `deploy-bot/` — voir **`deploy-bot/README.md`** pour son fonct
 1. Copier dans le dossier : `deploy-bot/app.js`, `deploy-bot/lib/`, `deploy-bot/package.json`,
    `deploy-bot/.env.example`, `deploy-bot/start.sh`, et le dossier `scripts/`
    (le dossier `Textes_Arabes_Serigne_Touba/` doit aussi y être).
-2. `cp .env.example .env` puis remplir `TELEGRAM_TOKEN`, `GEMINI_API_KEY` (et `GROQ_API_KEY` si possible).
+2. `cp .env.example .env` puis remplir `TELEGRAM_TOKEN`, `GEMINI_API_KEY` (et `GROQ_API_KEY`, `ELEVENLABS_API_KEY` pour les vocaux en wolof).
 3. `npm install`
 4. `node scripts/fetch-sources.mjs` (Coran + hadiths → `sources/`)
 5. Si `versets_cache.jsonl` est absent : `node scripts/cache_vectors.mjs`

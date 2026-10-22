@@ -1,6 +1,6 @@
 // LAMP AI — model calls with timeout + automatic fallback (Gemini chain, then Groq)
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEY, GROQ_API_KEY, MODELS, GROQ_MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
+import { GEMINI_API_KEY, GROQ_API_KEY, ELEVENLABS_API_KEY, MODELS, GROQ_MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
 
 export const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
@@ -156,6 +156,29 @@ async function groqChat(params) {
 }
 
 /** Speech → text with Groq Whisper (backup when Gemini can't transcribe). */
+// ElevenLabs Scribe: one of the few speech engines trained on Wolof (and it handles
+// Wolof mixed with French). Language is detected automatically.
+export async function elevenTranscribe(buffer, mimeType) {
+  if (!ELEVENLABS_API_KEY) return '';
+  const ext = /ogg|opus/.test(mimeType) ? 'ogg' : /mp4|m4a/.test(mimeType) ? 'm4a' : /wav/.test(mimeType) ? 'wav' : 'mp3';
+  for (const model of ['scribe_v2', 'scribe_v1']) {
+    try {
+      const form = new FormData();
+      form.append('file', new Blob([buffer], { type: mimeType }), `audio.${ext}`);
+      form.append('model_id', model);
+      form.append('tag_audio_events', 'false');
+      const res = await withTimeout(fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+        method: 'POST', headers: { 'xi-api-key': ELEVENLABS_API_KEY }, body: form,
+      }), AI_TIMEOUT_MS, `elevenlabs ${model}`);
+      if (!res.ok) { console.warn(`[ElevenLabs] ${model} ${res.status} ${(await res.text()).slice(0, 120)}`); if (res.status === 401 || res.status === 402) return ''; continue; }
+      const j = await res.json();
+      const text = (j.text || '').trim();
+      if (text) { console.warn(`[ElevenLabs] transcribed with ${model} (${j.language_code})`); return text; }
+    } catch (e) { console.warn(`[ElevenLabs] ${model}: ${e.message}`); }
+  }
+  return '';
+}
+
 // Whisper has no Wolof: left alone it guesses another language (Indonesian, Malay…) and
 // writes nonsense. So we give it the usual vocabulary, and if it still picks a language
 // other than French / English / Arabic we redo it forcing French — Wolof then comes out
