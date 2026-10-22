@@ -2,7 +2,7 @@
 import { execFile } from 'child_process';
 import { Modality } from '@google/genai';
 import { withEachKey, withTimeout, groqTranscribe } from './ai.js';
-import { MODELS, VOICES } from './config.js';
+import { MODELS, VOICES, FFMPEG } from './config.js';
 import { toSpeech } from './telegram-format.js';
 import * as S from './sources.js';
 
@@ -18,12 +18,12 @@ function pcmToWav(pcm, sampleRate = 24000) {
 let ffmpegOk = null;
 function hasFfmpeg() {
   if (ffmpegOk !== null) return Promise.resolve(ffmpegOk);
-  return new Promise((res) => execFile('ffmpeg', ['-version'], (err) => res((ffmpegOk = !err))));
+  return new Promise((res) => execFile(FFMPEG, ['-version'], (err) => res((ffmpegOk = !err))));
 }
 
 function wavToOgg(wav) {
   return new Promise((resolve, reject) => {
-    const p = execFile('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-c:a', 'libopus', '-b:a', '32k', '-f', 'ogg', 'pipe:1'],
+    const p = execFile(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-c:a', 'libopus', '-b:a', '32k', '-f', 'ogg', 'pipe:1'],
       { encoding: 'buffer', maxBuffer: 50 * 1024 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(stdout)));
     p.stdin.end(wav);
   });
@@ -32,6 +32,56 @@ function wavToOgg(wav) {
 // The speech model must read the text, not "perform" it. It never gets Arabic text (see toSpeech),
 // and each audio is checked before sending: length, no Arabic spoken, no words that are not written.
 const seconds = (pcm) => pcm.length / (24000 * 2);
+// What the voice said vs what was written. The transcription engine itself misspells names
+// ("Saïd al-Bourhari" for Sahih al-Bukhari) and homophones ("pain" for "pin"): such scattered
+// differences are normal. A voice that ADDS something (a verse, a prayer, an improvised sentence)
+// produces several unwritten words in a row; one that SKIPS a sentence leaves several written
+// words in a row unheard. Only those are refused.
+const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['’-]/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
+// Arabic names are spelled many ways (Baqara/Bakara, Ahmadou/Amadou): compare their consonants
+const sk = (w) => w.replace(/ou/g, 'u').replace(/q|kh/g, 'k').replace(/dh|th/g, 'd').replace(/sh|ch/g, 's')
+  .replace(/([^aeiouy])h/g, '$1').replace(/^h/, '').replace(/(.)\1+/g, '$1').replace(/(?!^)[aeiouy]/g, '');
+const lev1 = (a, b) => {                                    // edit distance ≤ 1
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0; while (i < a.length && a[i] === b[i]) i++;
+  return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i);
+};
+const close = (a, b) => a === b || (a.length > 4 && b.length > 4 && a.slice(0, 5) === b.slice(0, 5))
+  || (Math.min(sk(a).length, sk(b).length) >= 3 && Math.max(sk(a).length, sk(b).length) >= 4 && lev1(sk(a), sk(b)));   // Serigne/Serine
+
+// Align the two word lists in order (like a diff). Returns the runs of written words not heard
+// and of heard words not written.
+function align(written, said) {
+  const n = written.length; const m = said.length;
+  const eq = (i, j) => close(written[i], said[j])
+    || (i + 1 < n && close(written[i] + written[i + 1], said[j]))          // "khadimou rassoul" → "hadimourassoul"
+    || (j + 1 < m && close(written[i], said[j] + said[j + 1]));
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = eq(i, j) ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const skipped = []; const added = []; let curS = []; let curA = [];
+  let i = 0; let j = 0;
+  const flush = () => { if (curS.length) skipped.push(curS); if (curA.length) added.push(curA); curS = []; curA = []; };
+  while (i < n && j < m) {
+    if (eq(i, j)) { flush(); i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) { curS.push(written[i++]); } else { curA.push(said[j++]); }
+  }
+  while (i < n) curS.push(written[i++]);
+  while (j < m) curA.push(said[j++]);
+  flush();
+  return { skipped, added };
+}
+
+export function wordProblems(say, heard) {
+  const written = norm(say); const said = norm(heard);
+  const { skipped, added } = align(written, said);
+  const bigAdd = added.find((r) => r.length >= 3);
+  if (bigAdd) return `ajout de mots non écrits : ${bigAdd.join(' ')}`;
+  const bigSkip = skipped.find((r) => r.length >= 4);
+  if (bigSkip) return `passage sauté : ${bigSkip.join(' ')}`;
+  const extra = added.reduce((n, r) => n + r.length, 0);
+  if (said.length > 20 && extra / said.length > 0.15) return `trop de mots non écrits (${extra}/${said.length})`;
+  return '';
+}
+
 async function looksFaithful(pcm, wav, say, lang) {
   const dur = seconds(pcm);
   const expected = say.length / 14;                          // ~14 characters per second of speech
@@ -49,27 +99,8 @@ async function looksFaithful(pcm, wav, say, lang) {
     }
     if (heard.length > say.length * 1.6 + 60) return 'texte prononcé plus long que le texte écrit';
     if (lang !== 'wo') {                                     // Whisper does not know Wolof: word check only in fr/en
-      const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['’-]/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
-      const written = norm(say);
-      // Arabic names are spelled many ways (Baqara/Bakara, Ahmadou/Amadou): compare their consonants
-      const sk = (w) => w.replace(/ou/g, 'u').replace(/q|kh/g, 'k').replace(/dh|th/g, 'd').replace(/sh|ch/g, 's')
-        .replace(/([^aeiouy])h/g, '$1').replace(/^h/, '').replace(/(.)\1+/g, '$1').replace(/(?!^)[aeiouy]/g, '');
-      const lev1 = (a, b) => {                                  // edit distance ≤ 1
-        if (Math.abs(a.length - b.length) > 1) return false;
-        let i = 0; while (i < a.length && a[i] === b[i]) i++;
-        return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i);
-      };
-      const close = (a, b) => a === b || (a.length > 3 && b.length > 3 && a.slice(0, 4) === b.slice(0, 4))
-        || (sk(a).length >= 3 && sk(b).length >= 3 && lev1(sk(a), sk(b)));
-      const known = (w) => written.some((x) => close(x, w));
-      const extra = norm(heard).filter((w) => !known(w));
-      // a speech model that "adds" something (a verse, a prayer) produces several unwritten words
-      if (extra.length >= 3) return `mots non écrits prononcés : ${extra.slice(0, 6).join(', ')}`;
-      // ...and one that skips a sentence can change who said what ("Allah dit : <next sentence>")
-      const said = norm(heard);
-      const heardKnown = (w) => said.some((x) => close(x, w));
-      const missing = written.filter((w) => !heardKnown(w));
-      if (missing.length >= 3) return `phrases sautées : ${missing.slice(0, 6).join(', ')}`;
+      const p = wordProblems(say, heard);
+      if (p) return p;
     }
   }
   return '';

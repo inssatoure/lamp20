@@ -5,7 +5,7 @@
 import { execFile } from 'child_process';
 import { Modality } from '@google/genai';
 import { withEachKey, withTimeout, groqTranscribe } from './ai.js';
-import { MODELS, VOICES } from './config.js';
+import { MODELS, VOICES, FFMPEG } from './config.js';
 import * as S from './sources.js';
 
 const AR = '؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿';
@@ -33,7 +33,7 @@ function toOgg(input, inputFormat) {
   return new Promise((resolve, reject) => {
     const args = ['-hide_banner', '-loglevel', 'error', ...(inputFormat ? ['-f', inputFormat, '-ar', '24000', '-ac', '1'] : []),
       '-i', 'pipe:0', '-c:a', 'libopus', '-b:a', '48k', '-f', 'ogg', 'pipe:1'];
-    const p = execFile('ffmpeg', args, { encoding: 'buffer', maxBuffer: 50 * 1024 * 1024 }, (err, out) => (err ? reject(err) : resolve(out)));
+    const p = execFile(FFMPEG, args, { encoding: 'buffer', maxBuffer: 50 * 1024 * 1024 }, (err, out) => (err ? reject(err) : resolve(out)));
     p.stdin.end(input);
   });
 }

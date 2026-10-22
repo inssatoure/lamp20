@@ -1,6 +1,9 @@
 /**
- * LAMP AI — Telegram bot (polling, no webhook needed)
+ * LAMP AI — Telegram bot
  * Start:   node app.js        Env: TELEGRAM_TOKEN, GEMINI_API_KEY  (optional: GROQ_API_KEY, LAMP_ROOT_DIR)
+ * Two ways to receive messages:
+ *   • polling (default): the bot asks Telegram for new messages — for a VPS / Railway / a computer
+ *   • webhook (LAMP_WEBHOOK_URL set): Telegram calls our web address — for shared hosting (cPanel)
  *
  * This file only talks to Telegram. The rest lives in lib/:
  *   brain.js   understand → sources → answer → check references
@@ -10,7 +13,7 @@
  *   voice.js   voice replies · history.js memory · telegram-format.js safe messages
  */
 import TelegramBot from 'node-telegram-bot-api';
-import { TELEGRAM_TOKEN, GEMINI_API_KEY, VOICE_REPLY } from './lib/config.js';
+import { TELEGRAM_TOKEN, GEMINI_API_KEY, VOICE_REPLY, WEBHOOK_URL, WEBHOOK_SECRET, TELEGRAM_API_URL } from './lib/config.js';
 
 if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
   console.error('[LAMP] Missing env vars: TELEGRAM_TOKEN and GEMINI_API_KEY are required');
@@ -32,7 +35,8 @@ process.on('uncaughtException', (e) => console.error('[LAMP] uncaught exception:
 warmUp();
 const STARTED = Math.floor(Date.now() / 1000);
 const bot = new TelegramBot(TELEGRAM_TOKEN, {
-  polling: { interval: 1000, autoStart: false, params: { timeout: 30, allowed_updates: ['message'] } },
+  ...(WEBHOOK_URL ? { polling: false } : { polling: { interval: 1000, autoStart: false, params: { timeout: 30, allowed_updates: ['message'] } } }),
+  ...(TELEGRAM_API_URL ? { baseApiUrl: TELEGRAM_API_URL } : {}),
 });
 // Started at the END of this file, once every handler is registered (no message lost).
 
@@ -124,7 +128,7 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
   let lang = 'fr';
   try {
     const ctx = await getContext(chatId);
-    const r = await answer(question, ctx.history, ctx);
+    const r = await answer(question, ctx.history, { ...ctx, name: ctx.name || [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') });
     lang = r.lang;
     stop();
     await send(chatId, r.text);
@@ -138,7 +142,9 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
   }
 }
 
-const isStale = (msg) => msg.date < STARTED - 120;     // ignore the backlog piled up while the bot was off
+// ignore the backlog piled up while the bot was off (webhook: the host may start the app only when a
+// message arrives, so that message is a bit older than the start)
+const isStale = (msg) => msg.date < STARTED - (WEBHOOK_URL ? 600 : 120);
 
 // ─── commands ────────────────────────────────────────────────────────────────
 bot.onText(/^\/start\b/, (msg) => {
@@ -222,14 +228,32 @@ bot.on('message', (msg) => {
 });
 
 // ─── start ───────────────────────────────────────────────────────────────────
-// An old webhook on this token would block polling (409): remove it first.
-bot.deleteWebHook()
-  .catch((e) => console.warn('[LAMP] deleteWebHook:', e.message))
-  .finally(() => {
-    bot.startPolling().catch((e) => console.error('[LAMP] startPolling:', e.message));
-    bot.getMe().then((me) => console.log(`[LAMP] Started — polling Telegram as @${me.username}`))
-      .catch((e) => console.error('[LAMP] getMe failed:', e.message));
+if (WEBHOOK_URL) {
+  // Telegram → POST <WEBHOOK_URL path>. Answer 200 at once (Telegram resends on slow replies), then work.
+  const hookPath = new URL(WEBHOOK_URL).pathname;
+  startAdmin(async (req, res, url) => {
+    if (url.pathname !== hookPath) return false;
+    if (req.method !== 'POST') { res.statusCode = 405; res.end(); return true; }
+    if (WEBHOOK_SECRET && req.headers['x-telegram-bot-api-secret-token'] !== WEBHOOK_SECRET) { res.statusCode = 401; res.end(); return true; }
+    let body = '';
+    for await (const chunk of req) { body += chunk; if (body.length > 1_000_000) break; }
+    res.end('ok');
+    try { bot.processUpdate(JSON.parse(body)); } catch (e) { console.warn('[Webhook] bad update:', e.message); }
+    return true;
   });
-
-// Admin page to read the conversations (only if LAMP_ADMIN_PASSWORD and PORT are set)
-startAdmin();
+  bot.setWebHook(WEBHOOK_URL, { ...(WEBHOOK_SECRET ? { secret_token: WEBHOOK_SECRET } : {}), allowed_updates: JSON.stringify(['message']) })
+    .then(() => bot.getMe())
+    .then((me) => console.log(`[LAMP] Started — webhook ${WEBHOOK_URL} for @${me.username}`))
+    .catch((e) => console.error('[LAMP] setWebHook failed:', e.message));
+} else {
+  // An old webhook on this token would block polling (409): remove it first.
+  bot.deleteWebHook()
+    .catch((e) => console.warn('[LAMP] deleteWebHook:', e.message))
+    .finally(() => {
+      bot.startPolling().catch((e) => console.error('[LAMP] startPolling:', e.message));
+      bot.getMe().then((me) => console.log(`[LAMP] Started — polling Telegram as @${me.username}`))
+        .catch((e) => console.error('[LAMP] getMe failed:', e.message));
+    });
+  // Admin page to read the conversations (only if LAMP_ADMIN_PASSWORD and PORT are set)
+  startAdmin();
+}

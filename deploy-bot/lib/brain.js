@@ -67,11 +67,17 @@ Analyse le message (dans le contexte de l'historique) et réponds en JSON :
   }, 'light', true);
   try {
     const o = parseJson(raw);
-    const khassaid = S.findKhassaid(o.khassaid) || S.findKhassaid(text) || '';
+    // a title counts only if the person said it (in this message or the last ones): the understanding
+    // model sometimes names a Khassaid nobody mentioned
+    const said = [text, ...history.slice(-4).map((m) => m.text)];
+    const fromModel = S.findKhassaid(o.khassaid);
+    const khassaid = S.findKhassaid(text) || (fromModel && said.some((t) => S.findKhassaid(t) === fromModel) ? fromModel : '');
     const asked = readingRequest(text);                       // clear wording beats the model's guess
     if (asked && khassaid) Object.assign(o, asked);
     // a Khassaid named in the question but absent from the library (or invented): said explicitly
-    const unknownKhassaid = !khassaid && typeof o.khassaid === 'string' && o.khassaid.trim().length > 2 ? o.khassaid.trim() : '';
+    const plain = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const firstWord = plain(o.khassaid || '').split(/[^a-z]+/).find((w) => w.length >= 4) || '';
+    const unknownKhassaid = !khassaid && !fromModel && firstWord && plain(text).includes(firstWord) ? String(o.khassaid).trim() : '';
     return {
       unknownKhassaid,
       lang: ['fr', 'wo', 'en'].includes(o.lang) ? o.lang : fallback.lang,

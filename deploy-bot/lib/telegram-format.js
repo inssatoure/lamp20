@@ -64,7 +64,7 @@ export function toSpeech(md, lang = 'fr', recited = false, max = 2500) {
     .replace(/\bn°\s*/gi, { fr: 'numéro ', wo: 'numéro ', en: 'number ' }[lang] || 'numéro ')
     .replace(/\*\*|__|[*_`#>▎•]/g, '')
     .replace(/\((?:\d{1,3}:\d{1,3}|[^)]*n°\s*\d+[^)]*)\)/g, '')     // references are for reading, not hearing
-    .replace(/\([^)]*(?:distique|b[ëe]yit|verset|sourate|\d+\s*:\s*\d+)[^)]*\)/gi, '')
+    .replace(/\([^)]*(?:distique|b[ëe]yit|verset|sourate|\d+\s*:\s*\d+|bukh?ari|boukhari|muslim|dawud|daoud|malik|muwatta|nawawi|tirmidhi|hadith)[^)]*\)/gi, '')
     .replace(/\s—\s*(?=\n|$)/g, '')
     .replace(/(\([^)]*\)\s*){2,}/g, (m) => m.match(/\([^)]*\)/)[0] + ' ')
     .replace(/«\s*»|\(\s*\)/g, '').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();

@@ -39,6 +39,15 @@ export const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT || 
 // Admin page to read the conversations: http://<server>:<PORT>/admin  (off if no password)
 export const ADMIN_PASSWORD = process.env.LAMP_ADMIN_PASSWORD || '';
 export const PORT = Number(process.env.PORT || 0);
+// Webhook mode (shared hosting such as Namecheap Stellar / cPanel "Setup Node.js App"): Telegram calls
+// this URL for every message instead of the bot polling. Must be https. Example: https://lamp.example.com/telegram
+export const WEBHOOK_URL = process.env.LAMP_WEBHOOK_URL || '';
+export const WEBHOOK_SECRET = process.env.LAMP_WEBHOOK_SECRET || '';       // random text, checked on every call
+// ffmpeg (voice notes): the system one if present, else the copy installed with the bot (ffmpeg-static)
+let bundled = '';
+try { bundled = (await import('ffmpeg-static')).default || ''; } catch { /* not installed */ }
+export const FFMPEG = process.env.FFMPEG_PATH || (fs.existsSync('/usr/bin/ffmpeg') ? 'ffmpeg' : bundled || 'ffmpeg');
+export const TELEGRAM_API_URL = process.env.TELEGRAM_API_URL || '';         // tests only (fake Telegram server)
 
 // Models. Each model has its own free quota, so the chain moves on when one is exhausted.
 export const MODELS = {

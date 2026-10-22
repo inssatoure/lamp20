@@ -32,3 +32,4 @@ sources/
 deploy-bot/.env
 versets_cache.jsonl.tmp
 versets_cache.jsonl.new
+.lamp-bad-commit

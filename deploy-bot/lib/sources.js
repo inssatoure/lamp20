@@ -78,12 +78,15 @@ export function findKhassaid(text) {
     if (q.includes(alias) && KHASSAIDS.has(k)) return k;
   }
   // 3. distinctive first word of a title ("Mawahibou" → mawahibu)
-  const words = norm(text).split(/[^a-z]+/).map(titleKey).filter((w) => w.length >= 5);
+  // everyday religious words are not titles ("Allah" must not open "Allaahu Hayyun Samadun")
+  const COMMON = new Set(['allah', 'allahu', 'rabbi', 'bismillah', 'bismillahi', 'alhamdulillah', 'alhamdulillahi', 'muhammad', 'salat', 'salam', 'nabi', 'rasul', 'jannah', 'subhanallah', 'inshallah', 'mashallah', 'astaghfirullah', 'allahu akbar'].map(titleKey));
+  const words = norm(text).split(/[^a-z]+/).map(titleKey).filter((w) => w.length >= 5 && !COMMON.has(w));
   for (const k of byLength) {
     const first = titleKey(k.split('_')[0]);
     if (first.length < 5) continue;
     const shared = [...KHASSAIDS.keys()].filter((o) => titleKey(o.split('_')[0]) === first).length;
-    if (shared === 1 && words.some((w) => w.startsWith(first) || first.startsWith(w))) return k;
+    // the word must be the title word (or a longer spelling of it), not just its start: "Allah" is not "Allaahu…"
+    if (shared === 1 && words.some((w) => w.startsWith(first) || (first.startsWith(w) && w.length >= first.length - 1))) return k;
   }
   // 4. sound-alike, for voice messages ("wakana hakan" → Wa kaana haqqan)
   // only when the person is clearly talking about a poem (else "Salamalekum" sounds like "Halaman")
