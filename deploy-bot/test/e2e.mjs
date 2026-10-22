@@ -16,6 +16,8 @@ const { toTelegramHtml, splitMessage } = await import('../lib/telegram-format.js
 const { speak } = await import('../lib/voice.js');
 const { recitations, quotedTexts } = await import('../lib/recite.js');
 const S = await import('../lib/sources.js');
+const { getUsage, resetUsage } = await import('../lib/ai.js');
+const total = { calls: 0, in: 0, out: 0 };
 
 const AR = '؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿';
 // one line at a time: a quote written over two lines is two passages (two hemistichs)
@@ -81,6 +83,7 @@ let failures = 0;
 for (const sc of SCENARIOS) {
   if (ONLY.length && !ONLY.includes(sc.user)) continue;
   const t0 = Date.now();
+  resetUsage();
   let r; let problems = [];
   try {
     const ctx = await getContext(sc.user);
@@ -100,10 +103,16 @@ for (const sc of SCENARIOS) {
     if (!a) problems.push('pas de vocal');
     if (rec.length < quoted.length) problems.push(`${quoted.length - rec.length} récitation(s) manquante(s)`);
   }
+  // let background work (memory update) finish before counting
+  await new Promise((res) => setTimeout(res, 4000));
+  const u = getUsage(); const tok = { calls: u.gemini.calls + u.groq.calls, in: u.gemini.in + u.groq.in, out: u.gemini.out + u.groq.out };
+  for (const k of Object.keys(total)) total[k] += tok[k];
+  voice += ` | ${tok.calls} appels IA, ${tok.in + tok.out} tokens`;
   if (problems.length) failures++;
   console.log(`${problems.length ? '❌' : '✅'} [${sc.user}] ${sc.q} (${secs}s, ${r?.text?.length || 0} car.)${voice}`);
   for (const p of problems) console.log(`     – ${p}`);
   fs.appendFileSync(path.join(process.env.LAMP_DATA_DIR, 'answers.md'), `\n\n## ${sc.q}\n\n${r?.text || ''}\n`);
 }
+console.log(`\nTOTAL : ${total.calls} appels IA, ${total.in} tokens envoyés + ${total.out} tokens produits = ${total.in + total.out}`);
 console.log(`\n${SCENARIOS.length - failures}/${SCENARIOS.length} scénarios OK — réponses complètes : ${path.join(process.env.LAMP_DATA_DIR, 'answers.md')}`);
 process.exit(failures ? 1 : 0);

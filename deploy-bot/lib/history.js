@@ -9,7 +9,7 @@ import * as store from './store.js';
 import { updateMemory as rewriteMemory } from './brain.js';
 
 const SESSION_GAP_MS = 6 * 3600_000;
-const MEMORY_EVERY = 2;                     // exchanges between two memory updates
+const MEMORY_EVERY = 4;                     // exchanges between two memory updates
 
 const cache = new Map();                   // chatId -> { profile, memory, session: [{role,text}], sinceMemory }
 

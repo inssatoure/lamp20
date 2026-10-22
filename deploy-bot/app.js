@@ -129,7 +129,8 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
     stop();
     await send(chatId, r.text);
     await addExchange(chatId, msg.from, question, r.text, { lang, voice: fromVoice });
-    if (!r.direct) await sendVoiceReply(chatId, r.text, r.lang);
+    // voice only for people who speak to the bot (the voice quota is small)
+    if (fromVoice && !r.direct) await sendVoiceReply(chatId, r.text, r.lang);
   } catch (e) {
     stop();
     console.error('[Answer] failed:', e?.message || e);

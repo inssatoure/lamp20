@@ -29,6 +29,12 @@ export async function withEachKey(fn) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ─── token counter (text models only) ────────────────────────────────────────
+const usage = { gemini: { calls: 0, in: 0, out: 0 }, groq: { calls: 0, in: 0, out: 0 } };
+function count(who, input = 0, output = 0) { usage[who].calls++; usage[who].in += input || 0; usage[who].out += output || 0; }
+export const getUsage = () => structuredClone(usage);
+export function resetUsage() { for (const u of Object.values(usage)) Object.assign(u, { calls: 0, in: 0, out: 0 }); }
+
 export function withTimeout(promise, ms = AI_TIMEOUT_MS, label = 'AI call') {
   let t;
   return Promise.race([
@@ -72,7 +78,9 @@ export async function generate(params, chain = 'answer') {
       const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
       // never wait past the budget: a slow Google call is cut and Groq answers instead
       const wait = GROQ_API_KEY ? Math.max(5_000, Math.min(timeout, deadline - Date.now())) : timeout;
-      return await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), wait, model);
+      const r = await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), wait, model);
+      count('gemini', r.usageMetadata?.promptTokenCount, (r.usageMetadata?.candidatesTokenCount || 0) + (r.usageMetadata?.thoughtsTokenCount || 0));
+      return r;
     } catch (err) {
       lastErr = err;
       const msg = String(err?.message || err);
@@ -91,6 +99,20 @@ export async function generate(params, chain = 'answer') {
   if (GROQ_API_KEY) {
     const text = await groqChat(params);
     if (text) return { text, groq: true };
+  }
+  // Groq could not help either (its per-minute limit): one last patient try on Gemini, no time budget
+  if (GROQ_API_KEY) {
+    for (const { model, key } of models.flatMap((model) => liveKeys().map((key) => ({ model, key })))) {
+      if (isExhausted(`${key.n}:${model}`)) continue;
+      try {
+        const { toolRunner, _only, preferGroq, deadline: _d, ...geminiParams } = params;
+        const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
+        const r = await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), timeout, model);
+        count('gemini', r.usageMetadata?.promptTokenCount, r.usageMetadata?.candidatesTokenCount);
+        return r;
+      } catch (e) { lastErr = e; }
+      break;
+    }
   }
   throw lastErr || new Error('All models unavailable');
 }
@@ -125,7 +147,9 @@ async function groqCall(model, body) {
     if (res.status === 429) err.retryAfter = m ? Number(m[1]) : 60;
     throw err;
   }
-  return (await res.json()).choices?.[0]?.message || {};
+  const j = await res.json();
+  count('groq', j.usage?.prompt_tokens, j.usage?.completion_tokens);
+  return j.choices?.[0]?.message || {};
 }
 
 async function groqChat(params) {

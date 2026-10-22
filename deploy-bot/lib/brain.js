@@ -245,6 +245,52 @@ export function checkArabic(reply) {
   return out;
 }
 
+// ─── answers without AI ──────────────────────────────────────────────────────
+const CACHE = new Map();     // same first question within 24 h → same answer (new conversations only)
+setInterval(() => { const now = Date.now(); for (const [k, v] of CACHE) if (v.until < now) CACHE.delete(k); }, 3600_000).unref();
+
+const GREETING = /^\s*(?:(?:as+)?-?sa?l[ae]+m(?:ou|u)?(?:\s*-?\s*al[ae]?[iy]?k(?:ou|u)?m)?|salut|bonjour|bonsoir|hello|hi|hey|nanga\s*def|na\s*nga\s*def|jamm\s*nga\s*am|mbaa\s*jamm|wa\s*alaykum\s*salam)[\s,!.?]*(?:(?:nanga|na nga)\s*def|ça\s*va|comment\s*(?:vas|allez)[- ]\w+|how\s+are\s+you|lamp|serigne|sëriñ)?[\s,!.?]*$/i;
+const QURAN_REF = /(?:sourate|surah|sura|coran|quran)?\s*(\d{1,3})\s*[:.]\s*(\d{1,3})(?:\s*[-–à]\s*(\d{1,3}))?/i;
+
+export function directAnswer(text, history = [], person = {}) {
+  const t = String(text).trim();
+  const lang = guessLang(t);
+  // greetings
+  if (GREETING.test(t)) {
+    const name = (person.name || '').split(' ')[0];
+    const g = /^\s*(hello|hi|hey)\b/i.test(t) ? 'en' : lang;
+    const hi = /s+a?l[ae]+m/i.test(t) ? (g === 'wo' ? 'Wa alaykum salaam' : 'Wa alaykum as-salam') : 'As-salamu alaykum';
+    return { lang: g, direct: true, text: {
+      wo: `${hi}${name ? ` ${name}` : ''} 🤍 Maa ngi fi, jàmm rekk, alxamdulillaah. Lan laa la mën a dimbali tey ?`,
+      en: `${hi}${name ? ` ${name}` : ''} 🤍 I'm here, alhamdulillah. How can I help you today?`,
+      fr: `${hi}${name ? ` ${name}` : ''} 🤍 Je vais bien, alhamdulillah. Comment puis-je t'aider aujourd'hui ?`,
+    }[g] || '' };
+  }
+  // a Quran verse asked by its number ("2:153", "sourate 2 verset 153"), and nothing else
+  const m = t.match(/^\s*(?:lis(?:-moi)?|donne(?:-moi)?|montre(?:-moi)?|read|show)?\s*(?:le\s+|the\s+)?(?:verset|verse|aaya)?\s*(?:sourate|surah|sura)?\s*(\d{1,3})\s*(?:[:.]|\s+verset\s+|\s+verse\s+)\s*(\d{1,3})(?:\s*[-–à]\s*(\d{1,3}))?\s*[?.!]*\s*$/i);
+  if (m) {
+    const r = S.readQuran(Number(m[1]), Number(m[2]), m[3] ? Number(m[3]) : null);
+    if (!r.versets) return { lang, direct: true, text: r.erreur };
+    return { lang, direct: true, text: `📖 **Coran — ${r.sourate}**\n\n` +
+      r.versets.map((v) => `**${v.reference}**\n${v.arabe}\n« ${v.francais} »`).join('\n\n') + `\n\n_Traduction : ${r.traduction}_` };
+  }
+  // reading a Khassaid ("tous les vers de X", "le dernier vers de X"): no understanding step needed
+  const stem = S.findKhassaid(t);
+  const asked = readingRequest(t);
+  if (stem && asked?.texte_seul && asked.debut != null) return readingAnswer(stem, asked.debut, asked.fin, lang);
+  return null;
+}
+
+function readingAnswer(stem, debut, fin, lang) {
+  // the whole text when asked ("tous les vers", "en entier"): Telegram splits it into several messages
+  const r = S.readKhassaid(stem, debut ?? 1, fin ?? (debut != null ? debut : 10), 1000);
+  if (!r.distiques) return { lang, direct: true, text: r.erreur };
+  const body = r.distiques.map((d) => `${d.numero}. ${d.texte.replace('\n', '\n    ')}`).join('\n\n');
+  const range = r.premier === r.dernier ? `distique ${r.premier}` : `distiques ${r.premier} à ${r.dernier}`;
+  return { lang, direct: true,
+    text: `📖 **${r.titre}** — ${range} sur ${r.nombre_de_distiques}\n\n${body}${r.suite ? `\n\n➡️ ${r.suite}` : ''}` };
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 /**
  * history: [{ role: 'user'|'model', text }] of the current conversation
@@ -253,28 +299,28 @@ export function checkArabic(reply) {
  */
 export async function answer(text, history = [], person = {}) {
   const t0 = Date.now();
+  // 0. answers that need no AI at all (0 tokens)
+  const quick = directAnswer(text, history, person);
+  if (quick) { console.log('[Brain] direct answer (no AI)'); return quick; }
+  const cacheKey = !history.length ? `${guessLang(text)}|${text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()}` : '';
+  const cached = cacheKey && CACHE.get(cacheKey);
+  if (cached && cached.until > Date.now()) { console.log('[Brain] same question as before → saved answer'); return cached.r; }
+
   const u = await understand(text, history);
   const guessed = guessLang(text);                       // clear Wolof / English words beat the model's guess
   if (u.lang === 'fr' && (guessed === 'en' || guessed === 'wo')) u.lang = guessed;
   console.log(`[Brain] lang=${u.lang} khassaid=${u.khassaid || '-'} topic="${u.topic}" q="${u.question.slice(0, 80)}"`);
 
   // Reading a Khassaid text only: served straight from the file, no AI involved.
-  if (u.texte_seul) {
-    // the whole text when asked ("tous les vers", "en entier"): Telegram splits it into several messages
-    const r = S.readKhassaid(u.khassaid, u.debut ?? 1, u.fin ?? (u.debut != null ? u.debut : 10), 1000);
-    if (!r.distiques) return { lang: u.lang, direct: true, text: r.erreur };
-    const body = r.distiques.map((d) => `${d.numero}. ${d.texte.replace('\n', '\n    ')}`).join('\n\n');
-    const range = r.premier === r.dernier ? `distique ${r.premier}` : `distiques ${r.premier} à ${r.dernier}`;
-    return { lang: u.lang, direct: true,
-      text: `📖 **${r.titre}** — ${range} sur ${r.nombre_de_distiques}\n\n${body}${r.suite ? `\n\n➡️ ${r.suite}` : ''}` };
-  }
+  if (u.texte_seul) return readingAnswer(u.khassaid, u.debut, u.fin, u.lang);
 
   const refs = new Set();
   const [sources, notes] = await Promise.all([retrieve(u, refs), S.reviewedNotes().catch(() => '')]);
   const systemInstruction = buildContext({ ...u, khassaid: u.khassaid ? S.khassaidInfo(u.khassaid).titre : '', sources, notes, person: personText(person, history) });
 
   const contents = [
-    ...history.slice(-8).map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
+    // the last 4 messages; the bot's own long answers shortened (the memory note keeps the rest)
+    ...history.slice(-4).map((m) => ({ role: m.role, parts: [{ text: m.role === 'model' && m.text.length > 400 ? `${m.text.slice(0, 400)}…` : m.text }] })),
     { role: 'user', parts: [{ text }] },
   ];
   const config = { systemInstruction, temperature: 0.3, tools: TOOLS };
@@ -315,7 +361,9 @@ export async function answer(text, history = [], person = {}) {
   }
   reply = checkArabic(reply);
   console.log(`[Brain] answered in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  return { text: reply, lang: u.lang, direct: false };
+  const result = { text: reply, lang: u.lang, direct: false };
+  if (cacheKey) CACHE.set(cacheKey, { until: Date.now() + 24 * 3600_000, r: result });
+  return result;
 }
 
 /** Speech → text (Gemini hears Wolof, French, Arabic). */
