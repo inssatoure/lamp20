@@ -1,8 +1,16 @@
 // LAMP AI — model calls with timeout + automatic fallback (Gemini chain, then Groq)
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEY, GROQ_API_KEY, ELEVENLABS_API_KEY, MODELS, GROQ_MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
+import { GEMINI_API_KEYS, GROQ_API_KEY, ELEVENLABS_API_KEY, MODELS, GROQ_MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
 
-export const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+// ─── Gemini keys: use the first working one, skip a key whose billing/permission fails ───
+const KEYS = GEMINI_API_KEYS.map((apiKey, i) => ({ n: i + 1, client: new GoogleGenAI({ apiKey }), deadUntil: 0 }));
+const liveKeys = () => KEYS.filter((k) => k.deadUntil < Date.now());
+function killKey(k, msg) {
+  k.deadUntil = Date.now() + 30 * 60_000;
+  console.warn(`[AI] Gemini key #${k.n} refused (${msg.slice(0, 70)}) → ${liveKeys().length ? 'next key' : 'no key left'}`);
+}
+/** `ai.models` always points at the first working key (used by TTS and embeddings). */
+export const ai = { get models() { return (liveKeys()[0] || KEYS[0]).client.models; } };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -30,24 +38,26 @@ export async function generate(params, chain = 'answer') {
   const models = MODELS[chain] || MODELS.answer;
   const timeout = chain === 'light' ? LIGHT_TIMEOUT_MS : AI_TIMEOUT_MS;
   let lastErr;
+  for (const key of liveKeys()) {
   gemini: for (const model of models) {
-    if (isExhausted(model)) continue;
+    const slot = `${key.n}:${model}`;
+    if (isExhausted(slot)) continue;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const { toolRunner, _only, ...geminiParams } = params;
         // the Gemini SDK rewrites tool schemas in place: give it a copy so Groq still gets clean ones
         const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
-        return await withTimeout(ai.models.generateContent({ ...geminiParams, config, model }), timeout, model);
+        return await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), timeout, model);
       } catch (err) {
         lastErr = err;
         const msg = String(err?.message || err);
         if (isQuota(msg)) {
-          console.warn(`[AI] ${model} quota exhausted → next model`);
-          exhausted.set(model, Date.now() + 10 * 60_000);
+          console.warn(`[AI] ${model} (key #${key.n}) quota exhausted → next`);
+          exhausted.set(slot, Date.now() + 10 * 60_000);
           break;
         }
         if (/API_KEY|PERMISSION_DENIED|403|401|402|billing|suspended|prepayment|depleted/i.test(msg)) {
-          console.warn(`[AI] Gemini refused (${msg.slice(0, 70)}) → Groq`);   // key/account problem: no Gemini model will work
+          killKey(key, msg);   // key/account problem: no model will work with this key
           break gemini;
         }
         if (!isBusy(msg)) { console.warn(`[AI] ${model} error (${msg.slice(0, 70)}) → next`); break; }
@@ -56,6 +66,7 @@ export async function generate(params, chain = 'answer') {
         await sleep(2000);
       }
     }
+  }
   }
   if (GROQ_API_KEY) {
     const text = await groqChat(params);

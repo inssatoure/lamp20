@@ -14,7 +14,11 @@ for (const f of [path.join(APP_DIR, '.env'), path.join(APP_DIR, '..', '.env')]) 
 }
 
 export const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-export const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// One key, or several separated by commas (GEMINI_API_KEYS=key1,key2): if one key's billing or
+// quota fails, the next key is used. Use keys from projects you pay for or own legitimately.
+export const GEMINI_API_KEYS = [...new Set(`${process.env.GEMINI_API_KEYS || ''},${process.env.GEMINI_API_KEY || ''}`
+  .split(',').map((k) => k.trim()).filter(Boolean))];
+export const GEMINI_API_KEY = GEMINI_API_KEYS[0];
 export const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 export const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';   // Wolof speech-to-text (Scribe)
 
