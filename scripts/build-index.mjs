@@ -3,6 +3,7 @@
 // as the library. Run after any change to the texts:   GEMINI_API_KEY=... node scripts/build-index.mjs
 import fs from 'fs';
 import path from 'path';
+import readline from 'readline';
 import { GoogleGenAI } from '@google/genai';
 
 const ROOT = process.env.LAMP_ROOT_DIR || path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -28,16 +29,28 @@ for (const f of fs.readdirSync(DIR).filter((x) => x.endsWith('.txt')).sort()) {
     items.push({ t, n, c: `[Khassaid: ${t} | Distique N°${n}]\n${body}` });
   }
 }
-console.log(`${items.length} distiques à indexer`);
+// Reuse the vectors already computed for the same text (old index, or an interrupted run):
+// only new or corrected distiques cost an API call, so a rebuild fits in the free daily quota.
+const body = (c) => c.slice(c.indexOf(']') + 1).trim();
+const known = new Map();
+for (const f of [OUT, `${OUT}.tmp`]) {
+  if (!fs.existsSync(f)) continue;
+  for await (const line of readline.createInterface({ input: fs.createReadStream(f) })) {
+    try { const x = JSON.parse(line); if (x.c && x.e) known.set(body(x.c), x.e); } catch { /* partial last line */ }
+  }
+}
+const todo = items.filter((x) => !known.has(body(x.c)));
+console.log(`${items.length} distiques, ${items.length - todo.length} déjà calculés, ${todo.length} à indexer`);
 
 const tmp = `${OUT}.tmp`;
-const out = fs.createWriteStream(tmp);
-for (let i = 0; i < items.length; i += BATCH) {
-  const batch = items.slice(i, i + BATCH);
+const out = fs.createWriteStream(`${OUT}.new`);
+const part = fs.createWriteStream(tmp, { flags: 'a' });   // keeps progress if the quota stops us
+for (let i = 0; i < todo.length; i += BATCH) {
+  const batch = todo.slice(i, i + BATCH);
   for (let attempt = 1; ; attempt++) {
     try {
       const r = await clients[current].models.embedContent({ model: MODEL, contents: batch.map((x) => x.c) });
-      r.embeddings.forEach((e, j) => out.write(JSON.stringify({ ...batch[j], e: e.values }) + '\n'));
+      r.embeddings.forEach((e, j) => { known.set(body(batch[j].c), e.values); part.write(JSON.stringify({ ...batch[j], e: e.values }) + '\n'); });
       break;
     } catch (e) {
       if (attempt >= 12) throw e;
@@ -48,8 +61,11 @@ for (let i = 0; i < items.length; i += BATCH) {
       await sleep(wait);
     }
   }
-  process.stdout.write(`\r${Math.min(i + BATCH, items.length)}/${items.length}`);
+  process.stdout.write(`\r${Math.min(i + BATCH, todo.length)}/${todo.length}`);
 }
+for (const x of items) out.write(JSON.stringify({ ...x, e: known.get(body(x.c)) }) + '\n');
 await new Promise((r) => out.end(r));
-fs.renameSync(tmp, OUT);                // the old index is replaced only when the new one is complete
+await new Promise((r) => part.end(r));
+fs.renameSync(`${OUT}.new`, OUT);       // the old index is replaced only when the new one is complete
+fs.rmSync(tmp, { force: true });
 console.log(`\n✅ ${OUT}`);
