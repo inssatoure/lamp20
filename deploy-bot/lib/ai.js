@@ -197,7 +197,7 @@ export async function elevenTranscribe(buffer, mimeType) {
 // other than French / English / Arabic we redo it forcing French — Wolof then comes out
 // in the French-style spelling Senegalese people write it with ("dama bëgg", "yaw yay kan").
 const WHISPER_OK = new Set(['french', 'english', 'arabic', 'fr', 'en', 'ar']);
-export async function groqTranscribe(buffer, mimeType, vocabulary = '') {
+export async function groqTranscribe(buffer, mimeType, vocabulary = '', forceLanguage = '') {
   if (!GROQ_API_KEY) return '';
   const ext = /ogg|opus/.test(mimeType) ? 'ogg' : /mp4|m4a/.test(mimeType) ? 'm4a' : /wav/.test(mimeType) ? 'wav' : 'mp3';
   const call = async (model, language) => {
@@ -217,8 +217,8 @@ export async function groqTranscribe(buffer, mimeType, vocabulary = '') {
   };
   for (const model of ['whisper-large-v3', 'whisper-large-v3-turbo']) {
     try {
-      let r = await call(model);
-      if (r.text && !WHISPER_OK.has(r.language)) {
+      let r = await call(model, forceLanguage || undefined);
+      if (r.text && !forceLanguage && !WHISPER_OK.has(r.language)) {
         console.warn(`[Groq] Whisper heard "${r.language}" → redo as French (probably Wolof)`);
         r = await call(model, 'fr');
       }

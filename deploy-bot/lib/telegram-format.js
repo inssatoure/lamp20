@@ -42,20 +42,28 @@ export function splitMessage(text, max = 3800) {
 // does not read sacred text faithfully (it can change or invent verses). The voice says instead
 // that the Arabic is in the written message.
 const ARABIC_NOTE = {
-  fr: ' (le texte arabe est dans le message écrit) ',
-  wo: ' (mbind mi ci araab mi, mu ngi ci bataaxal bi) ',
-  en: ' (the Arabic text is in the written message) ',
+  fr: ' — citation en arabe : voir le message écrit.\n',
+  wo: ' — mbind mi ci araab : mu ngi ci bataaxal bi.\n',
+  en: ' — Arabic quotation: see the written message.\n',
+};
+const RECITED_NOTE = {
+  fr: " — citation en arabe : écoute l'audio suivant.\n",
+  wo: ' — mbind mi ci araab : dégglul kàddu gi ci topp.\n',
+  en: ' — Arabic quotation: listen to the next audio.\n',
 };
 const MORE_NOTE = { fr: ' La suite est dans le message écrit.', wo: ' Li ci des, mu ngi ci bataaxal bi.', en: ' The rest is in the written message.' };
-export function toSpeech(md, lang = 'fr', max = 2500) {
+export function toSpeech(md, lang = 'fr', recited = false, max = 2500) {
+  const note = (recited ? RECITED_NOTE : ARABIC_NOTE)[lang] || (recited ? RECITED_NOTE : ARABIC_NOTE).fr;
   const AR = '؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿';
   const pbuh = { fr: 'paix et salut sur lui', wo: 'sallalaahu alayhi wa sallam', en: 'peace be upon him' }[lang] || 'paix et salut sur lui';
   let s = String(md || '')
     .replace(/\(?\s*ﷺ\s*\)?/g, ` (${pbuh}) `)
-    .replace(new RegExp(`[«"]?\\s*[${AR}](?:[${AR}\\s/|]|[A-Za-z](?=[${AR}]))*\\s*[»"]?`, 'g'), (run) =>
-      (run.replace(new RegExp(`[^${AR}]`, 'g'), '').length > 12 ? ARABIC_NOTE[lang] || ARABIC_NOTE.fr : ' '))
+    .replace(new RegExp(`\\s*:?\\s*[«"]?\\s*[${AR}](?:[${AR}\\s/|]|[A-Za-z](?=[${AR}]))*\\s*[»"]?`, 'g'), (run) =>
+      (run.replace(new RegExp(`[^${AR}]`, 'g'), '').length > 12 ? note : ' '))
     .replace(/\*\*|__|[*_`#>▎•]/g, '')
     .replace(/\((?:\d{1,3}:\d{1,3}|[^)]*n°\s*\d+[^)]*)\)/g, '')     // references are for reading, not hearing
+    .replace(/\([^)]*(?:distique|b[ëe]yit|verset|sourate|\d+\s*:\s*\d+)[^)]*\)/gi, '')
+    .replace(/\s—\s*(?=\n|$)/g, '')
     .replace(/(\([^)]*\)\s*){2,}/g, (m) => m.match(/\([^)]*\)/)[0] + ' ')
     .replace(/«\s*»|\(\s*\)/g, '').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
   if (s.length > max) {

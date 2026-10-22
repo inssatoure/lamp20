@@ -429,21 +429,24 @@ export function warmUp() {
 // Every Arabic passage the bot writes must exist, letter for letter, in the library
 // (Quran or Khassaids). verifyArabic() says if a passage is exact, gives the exact
 // library text when the model made a copying mistake, or says it is unknown.
-let ARABIC_LINES = null;   // [{ text, skel, ref }]
+let ARABIC_LINES = null;   // [{ text, skel, ref, item }]  item = what to recite
 function arabicLines() {
   if (ARABIC_LINES) return ARABIC_LINES;
   if (!KHASSAIDS.size) loadKhassaidFiles();
   ARABIC_LINES = [];
-  for (const s of loadQuran()) for (const a of s.ayahs) ARABIC_LINES.push({ text: a.ar, skel: ARABIC_SKEL(a.ar), ref: `${s.num}:${a.n}` });
-  for (const k of KHASSAIDS.values()) {
+  for (const s of loadQuran()) for (const a of s.ayahs) ARABIC_LINES.push({ text: a.ar, skel: ARABIC_SKEL(a.ar), ref: `${s.num}:${a.n}`, item: { kind: 'quran', sura: s.num, ayah: a.n, name: s.nom } });
+  for (const [stem, k] of KHASSAIDS) {
     k.verses.forEach(([h1, h2], i) => {
-      for (const h of [h1, h2]) if (h && h !== '*') ARABIC_LINES.push({ text: h, skel: ARABIC_SKEL(h), ref: `${k.title} ${i + 1}` });
+      const item = { kind: 'khassaid', stem, title: k.title, n: i + 1, text: h2 && h2 !== '*' ? `${h1}\n${h2}` : h1 };
+      for (const h of [h1, h2]) if (h && h !== '*') ARABIC_LINES.push({ text: h, skel: ARABIC_SKEL(h), ref: `${k.title} ${i + 1}`, item });
     });
   }
   return ARABIC_LINES;
 }
 
 export const arabicSkeleton = ARABIC_SKEL;
+/** 0..1 — how close two Arabic texts are, letters only (vowel marks ignored). */
+export const arabicSimilarity = (a, b) => dice(ARABIC_SKEL(a), ARABIC_SKEL(b));
 
 /** { status: 'exact' | 'fixed' | 'unknown', text?, ref? } for one Arabic passage (one line / hemistich / verse). */
 export function verifyArabic(passage) {
@@ -454,8 +457,8 @@ export function verifyArabic(passage) {
   const hit = lines.find((l) => l.skel.includes(k));
   if (hit) {
     if (hit.text.includes(passage.trim()) || hit.skel === k) return hit.skel === k && !hit.text.includes(passage.trim())
-      ? { status: 'fixed', text: hit.text, ref: hit.ref } : { status: 'exact', ref: hit.ref };
-    return { status: 'exact', ref: hit.ref };                  // same letters, only vowel marks differ in a partial quote
+      ? { status: 'fixed', text: hit.text, ref: hit.ref, item: hit.item } : { status: 'exact', ref: hit.ref, item: hit.item };
+    return { status: 'exact', ref: hit.ref, item: hit.item };  // same letters, only vowel marks differ in a partial quote
   }
   // 2. close to a library line: a copying mistake → give the exact line
   let best = null; let score = 0;
@@ -464,6 +467,6 @@ export function verifyArabic(passage) {
     const d = dice(k, l.skel);
     if (d > score) { score = d; best = l; }
   }
-  if (best && score >= 0.72) return { status: 'fixed', text: best.text, ref: best.ref };
+  if (best && score >= 0.72) return { status: 'fixed', text: best.text, ref: best.ref, item: best.item };
   return { status: 'unknown' };
 }

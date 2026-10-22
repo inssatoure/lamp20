@@ -23,6 +23,7 @@ const { getContext, addExchange, newSession, forgetUser, activeChats } = await i
 const { startAdmin } = await import('./lib/admin.js');
 const { toTelegramHtml, toPlain, splitMessage } = await import('./lib/telegram-format.js');
 const { speak } = await import('./lib/voice.js');
+const { recitations, quotedTexts } = await import('./lib/recite.js');
 
 // ─── never die on an unexpected error ────────────────────────────────────────
 process.on('unhandledRejection', (e) => console.error('[LAMP] unhandled rejection:', e?.message || e));
@@ -84,11 +85,18 @@ async function sendVoiceReply(chatId, text, lang = 'fr') {
   if (!VOICE_REPLY) return;
   try {
     bot.sendChatAction(chatId, 'record_voice').catch(() => {});
-    const audio = await speak(text, lang);
-    if (!audio) return;
-    const fileOpts = { filename: audio.filename, contentType: audio.contentType };
-    if (audio.isVoice) await bot.sendVoice(chatId, audio.buffer, {}, fileOpts);
-    else await bot.sendAudio(chatId, audio.buffer, { title: 'LAMP AI', performer: 'LAMP' }, fileOpts);
+    const quoted = quotedTexts(text).length > 0;
+    // main voice (no Arabic in it) and the recitations of the quoted texts are prepared together
+    const [audio, recited] = await Promise.all([
+      speak(text, lang, quoted),
+      quoted ? recitations(text).catch(() => []) : [],
+    ]);
+    const fileOpts = (a) => ({ filename: a.filename || 'lamp.ogg', contentType: a.contentType || 'audio/ogg' });
+    if (audio) {
+      if (audio.isVoice) await bot.sendVoice(chatId, audio.buffer, {}, fileOpts(audio));
+      else await bot.sendAudio(chatId, audio.buffer, { title: 'LAMP AI', performer: 'LAMP' }, fileOpts(audio));
+    }
+    for (const r of recited) await bot.sendVoice(chatId, r.buffer, { caption: r.caption }, fileOpts(r));
   } catch (e) {
     console.warn('[Voice] reply skipped:', e.message.slice(0, 120));    // text was already sent: never an error for the user
   }

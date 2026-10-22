@@ -2,7 +2,7 @@
 import { execFile } from 'child_process';
 import { Modality } from '@google/genai';
 import { ai, withTimeout, groqTranscribe } from './ai.js';
-import { MODELS, TTS_VOICE } from './config.js';
+import { MODELS, VOICES } from './config.js';
 import { toSpeech } from './telegram-format.js';
 
 function pcmToWav(pcm, sampleRate = 24000) {
@@ -42,18 +42,24 @@ async function looksFaithful(pcm, wav, say, lang) {
     if (heard.length > say.length * 1.6 + 60) return 'texte prononcé plus long que le texte écrit';
     if (lang !== 'wo') {                                     // Whisper does not know Wolof: word check only in fr/en
       const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
-      const written = new Set(norm(say));
-      const words = norm(heard);
-      const extra = words.filter((w) => !written.has(w)).length;
-      if (words.length > 8 && extra / words.length > 0.3) return `mots ajoutés (${extra}/${words.length})`;
+      const written = norm(say);
+      const known = (w) => written.some((x) => x === w || (w.length > 4 && x.length > 4 && x.slice(0, 5) === w.slice(0, 5)));
+      const extra = norm(heard).filter((w) => !known(w));
+      // a speech model that "adds" something (a verse, a prayer) produces several unwritten words
+      if (extra.length >= 3) return `mots non écrits prononcés : ${extra.slice(0, 6).join(', ')}`;
+      // ...and one that skips a sentence can change who said what ("Allah dit : <next sentence>")
+      const said = norm(heard);
+      const heardKnown = (w) => said.some((x) => x === w || (w.length > 4 && x.length > 4 && x.slice(0, 5) === w.slice(0, 5)));
+      const missing = written.filter((w) => !heardKnown(w));
+      if (missing.length >= 4) return `phrases sautées : ${missing.slice(0, 6).join(', ')}`;
     }
   }
   return '';
 }
 
 /** Returns { buffer, filename, contentType, isVoice } or null when there is nothing to say (or the audio is not faithful). */
-export async function speak(text, lang = 'fr') {
-  const say = toSpeech(text, lang);
+export async function speak(text, lang = 'fr', recited = false) {
+  const say = toSpeech(text, lang, recited);
   if (say.length < 3) return null;
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -61,7 +67,7 @@ export async function speak(text, lang = 'fr') {
       const r = await withTimeout(ai.models.generateContent({
         model: MODELS.tts,
         contents: [{ parts: [{ text: say }] }],     // the text alone: any instruction would be read aloud too
-        config: { temperature: 0, responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: TTS_VOICE } } } },
+        config: { temperature: 0, responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICES[lang] || VOICES.fr } } } },
       }), 120_000, 'tts');
       const data = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData?.data;
       if (!data) throw new Error('no audio returned');

@@ -49,7 +49,9 @@ export const MODELS = {
 };
 export const GROQ_MODELS = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
 
-export const TTS_VOICE = 'Orus';
+// Fixed voice for every language (same voice every time; temperature 0 keeps the delivery stable).
+export const VOICES = { fr: 'Orus', wo: 'Orus', en: 'Orus', ar: 'Orus' };
+export const TTS_VOICE = VOICES.fr;
 export const AI_TIMEOUT_MS = 45_000;      // one answer call never waits longer than this
 export const LIGHT_TIMEOUT_MS = 12_000;   // understanding call (small JSON)
 export const MAX_TOOL_ROUNDS = 4;         // how many times the model may consult the sources per answer
