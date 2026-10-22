@@ -37,7 +37,7 @@ function htmlProblems(html) {
 function checks(text, expect) {
   const problems = [];
   if (!text || text.length < 2) problems.push('réponse vide');
-  for (const run of text.match(ARABIC_RUN) || []) {
+  for (const run of text.replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, ' ').match(ARABIC_RUN) || []) {
     if (run.trim().split(/\s+/).length < 3) continue;
     const v = S.verifyArabic(run.trim());
     if (v.status !== 'exact') problems.push(`arabe ${v.status} : ${run.trim().slice(0, 40)}`);

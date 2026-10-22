@@ -1,6 +1,6 @@
 // LAMP AI — model calls with timeout + automatic fallback (Gemini chain, then Groq)
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEYS, GROQ_API_KEY, GROQ_LIGHT_MODEL, ELEVENLABS_API_KEY, MODELS, GROQ_MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
+import { GEMINI_API_KEYS, GROQ_API_KEY, CEREBRAS_API_KEY, ANSWER_ROUTES, LIGHT_ROUTE, FORCE_ANSWER_MODEL, ELEVENLABS_API_KEY, MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
 
 // ─── Gemini keys: use the first working one, skip a key whose billing/permission fails ───
 const KEYS = GEMINI_API_KEYS.map((apiKey, i) => ({ n: i + 1, client: new GoogleGenAI({ apiKey }), deadUntil: 0 }));
@@ -30,7 +30,7 @@ export async function withEachKey(fn) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ─── token counter (text models only) ────────────────────────────────────────
-const usage = { gemini: { calls: 0, in: 0, out: 0 }, groq: { calls: 0, in: 0, out: 0 } };
+const usage = { gemini: { calls: 0, in: 0, out: 0 }, groq: { calls: 0, in: 0, out: 0 }, cerebras: { calls: 0, in: 0, out: 0 } };
 function count(who, input = 0, output = 0) { usage[who].calls++; usage[who].in += input || 0; usage[who].out += output || 0; }
 export const getUsage = () => structuredClone(usage);
 export function resetUsage() { for (const u of Object.values(usage)) Object.assign(u, { calls: 0, in: 0, out: 0 }); }
@@ -55,31 +55,37 @@ const isExhausted = (model) => (exhausted.get(model) || 0) > Date.now();
  * Tries each model of the chain; on overload retries once; on quota moves to the next.
  * Returns the Gemini response, or { text, groq: true } when Groq answered.
  */
+let lastRoute = '';
+/** Which model wrote the last answer (for quality tracking). */
+export const lastAnswerModel = () => lastRoute;
+
 export async function generate(params, chain = 'answer') {
+  if (chain === 'answer' && FORCE_ANSWER_MODEL) return forced(params);
   const models = MODELS[chain] || MODELS.answer;
   const timeout = chain === 'light' ? LIGHT_TIMEOUT_MS : AI_TIMEOUT_MS;
   // Small tasks (understanding, corrections, memory) go to Groq first: it answers in ~1 s and
   // keeps the Gemini quota for the answers. Gemini is the backup for them.
-  if (chain === 'light' && GROQ_API_KEY && !params.toolRunner && typeof params.contents === 'string') {
-    const text = await groqChat({ ...params, _only: GROQ_LIGHT_MODEL }).catch(() => '');
+  if (chain === 'light' && hasProvider(LIGHT_ROUTE) && !params.toolRunner && typeof params.contents === 'string') {
+    const text = await groqChat({ ...params, _only: LIGHT_ROUTE }).catch(() => '');
     if (text) return { text, groq: true };
   }
   // when Google is overloaded, don't keep trying: after this budget, Groq answers
   const deadline = params.deadline || Date.now() + (chain === 'light' ? 12_000 : 30_000);
   let lastErr;
-  const tries = params.preferGroq && GROQ_API_KEY ? [] : models.flatMap((model) => liveKeys().map((key) => ({ model, key })));
+  const tries = params.preferGroq && HAS_BACKUP ? [] : models.flatMap((model) => liveKeys().map((key) => ({ model, key })));
   for (const { model, key } of tries) {                     // best model on every key first, then the next model
     const slot = `${key.n}:${model}`;
     if (isExhausted(slot) || key.deadUntil > Date.now()) continue;
-    if (Date.now() > deadline && GROQ_API_KEY) { console.warn('[AI] Gemini too slow today → Groq'); break; }
+    if (Date.now() > deadline && HAS_BACKUP) { console.warn('[AI] Gemini too slow today → backup models'); break; }
     try {
       const { toolRunner, _only, preferGroq, deadline: _d, ...geminiParams } = params;
       // the Gemini SDK rewrites tool schemas in place: give it a copy so Groq still gets clean ones
       const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
       // never wait past the budget: a slow Google call is cut and Groq answers instead
-      const wait = GROQ_API_KEY ? Math.max(5_000, Math.min(timeout, deadline - Date.now())) : timeout;
+      const wait = HAS_BACKUP ? Math.max(5_000, Math.min(timeout, deadline - Date.now())) : timeout;
       const r = await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), wait, model);
       count('gemini', r.usageMetadata?.promptTokenCount, (r.usageMetadata?.candidatesTokenCount || 0) + (r.usageMetadata?.thoughtsTokenCount || 0));
+      if (chain === 'answer') lastRoute = `gemini:${model}`;
       return r;
     } catch (err) {
       lastErr = err;
@@ -96,12 +102,12 @@ export async function generate(params, chain = 'answer') {
       }
     }
   }
-  if (GROQ_API_KEY) {
+  if (HAS_BACKUP) {
     const text = await groqChat(params);
     if (text) return { text, groq: true };
   }
   // Groq could not help either (its per-minute limit): one last patient try on Gemini, no time budget
-  if (GROQ_API_KEY) {
+  if (HAS_BACKUP) {
     for (const { model, key } of models.flatMap((model) => liveKeys().map((key) => ({ model, key })))) {
       if (isExhausted(`${key.n}:${model}`)) continue;
       try {
@@ -116,6 +122,37 @@ export async function generate(params, chain = 'answer') {
   }
   throw lastErr || new Error('All models unavailable');
 }
+// Exam mode: every answer by one model, no fallback, so its quality is measured alone.
+async function forced(params) {
+  const [provider, ...rest] = FORCE_ANSWER_MODEL.split(':');
+  const model = rest.join(':');
+  if (provider !== 'gemini') {
+    for (let attempt = 0; attempt < 10; attempt++) {          // rate limits: wait and retry, never switch model
+      try {
+        const text = await groqChat({ ...params, _only: FORCE_ANSWER_MODEL, _noRetry: true });
+        if (text) return { text, groq: true };
+        throw new Error('empty');
+      } catch (e) { await sleep(Math.min((e.retryAfter || 20) * 1000 + 500, 30_000)); }
+    }
+    throw new Error(`${FORCE_ANSWER_MODEL} unavailable`);
+  }
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const key of liveKeys()) {
+      try {
+        const { toolRunner, _only, preferGroq, deadline: _d, ...geminiParams } = params;
+        const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
+        const r = await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), 90_000, model);
+        count('gemini', r.usageMetadata?.promptTokenCount, (r.usageMetadata?.candidatesTokenCount || 0) + (r.usageMetadata?.thoughtsTokenCount || 0));
+        lastRoute = FORCE_ANSWER_MODEL;
+        return r;
+      } catch (e) { lastErr = e; }
+    }
+    await sleep(10_000);
+  }
+  throw lastErr;
+}
+
 export async function generateText(params, chain = 'answer', soft = false) {
   try {
     const r = await generate(params, chain);
@@ -134,21 +171,31 @@ function toGroqTools(tools) {
   return decls.map((d) => ({ type: 'function', function: { name: d.name, description: d.description, parameters: d.parameters } }));
 }
 
-async function groqCall(model, body) {
-  const res = await withTimeout(fetch('https://api.groq.com/openai/v1/chat/completions', {
+const PROVIDERS = {
+  groq: { url: 'https://api.groq.com/openai/v1/chat/completions', key: GROQ_API_KEY },
+  cerebras: { url: 'https://api.cerebras.ai/v1/chat/completions', key: CEREBRAS_API_KEY },
+};
+const hasProvider = (route) => !!PROVIDERS[route.split(':')[0]]?.key;
+const HAS_BACKUP = Object.values(PROVIDERS).some((p) => p.key);
+
+async function groqCall(route, body) {
+  const [provider, ...rest] = route.split(':');
+  const model = rest.join(':');
+  const p = PROVIDERS[provider];
+  const res = await withTimeout(fetch(p.url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${p.key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, ...body }),
-  }), AI_TIMEOUT_MS, `groq ${model}`);
+  }), AI_TIMEOUT_MS, route);
   if (!res.ok) {
-    const body = await res.text();
-    const err = new Error(`groq ${model} ${res.status}: ${body.slice(0, 120)}`);
-    const m = body.match(/try again in ([\d.]+)s/);
-    if (res.status === 429) err.retryAfter = m ? Number(m[1]) : 60;
+    const text = await res.text();
+    const err = new Error(`${route} ${res.status}: ${text.slice(0, 120)}`);
+    const m = text.match(/try again in ([\d.]+)s/) || [null, res.headers.get('retry-after')];
+    if (res.status === 429) err.retryAfter = m[1] ? Number(m[1]) : 60;
     throw err;
   }
   const j = await res.json();
-  count('groq', j.usage?.prompt_tokens, j.usage?.completion_tokens);
+  count(provider, j.usage?.prompt_tokens, j.usage?.completion_tokens);
   return j.choices?.[0]?.message || {};
 }
 
@@ -171,12 +218,12 @@ async function groqChat(params) {
   const tools = params.toolRunner ? toGroqTools(params.config?.tools) : [];
   const temperature = params.config?.temperature ?? 0.4;
 
-  for (const model of params._only ? [params._only] : GROQ_MODELS) {
-    if (!params._only && isExhausted(`groq:${model}`)) continue;
+  for (const model of (params._only ? [params._only] : ANSWER_ROUTES).filter(hasProvider)) {
+    if (!params._only && isExhausted(model)) continue;
     try {
       const msgs = [...messages];
-      for (let round = 0; round <= 4; round++) {
-        const withTools = tools.length && round < 4;
+      for (let round = 0; round <= 2; round++) {
+        const withTools = tools.length && round < 2;
         const body = {
           messages: msgs, temperature,
           ...(json ? { response_format: { type: 'json_object' } } : {}),
@@ -198,16 +245,16 @@ async function groqChat(params) {
           continue;
         }
         const text = (msg.content || '').trim();
-        if (text) { console.warn(`[Groq] answered with ${model}`); return text; }
+        if (text) { console.warn(`[AI] answered with ${model}`); lastRoute = model; return text; }
         break;
       }
     } catch (e) {
-      console.warn(`[Groq] ${e.message.slice(0, 90)}`);
+      console.warn(`[AI] ${e.message.slice(0, 90)}`);
       if (e.retryAfter && e.retryAfter <= 15) {                 // short wait requested: wait once, same model
         await sleep(e.retryAfter * 1000 + 300);
         try { const again = await groqChat({ ...params, _only: model }); if (again) return again; } catch { /* next */ }
       }
-      if (e.retryAfter) exhausted.set(`groq:${model}`, Date.now() + Math.min(e.retryAfter, 120) * 1000);
+      if (e.retryAfter) exhausted.set(model, Date.now() + Math.min(e.retryAfter, 120) * 1000);
     }
   }
   return '';

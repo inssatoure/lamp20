@@ -16,7 +16,7 @@ const MAX_RECITATIONS = 4;
 /** The Quran verses and Khassaid distiques quoted in a (checked) answer, in order, without duplicates. */
 export function quotedTexts(answer) {
   const seen = new Set(); const items = [];
-  for (const run of String(answer).match(ARABIC_RUN) || []) {
+  for (const run of String(answer).replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, ' ').match(ARABIC_RUN) || []) {
     if (run.trim().split(/\s+/).length < 3) continue;
     const v = S.verifyArabic(run.trim());
     if (v.status === 'unknown' || !v.item) continue;

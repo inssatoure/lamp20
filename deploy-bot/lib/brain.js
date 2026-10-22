@@ -70,7 +70,10 @@ Analyse le message (dans le contexte de l'historique) et réponds en JSON :
     const khassaid = S.findKhassaid(o.khassaid) || S.findKhassaid(text) || '';
     const asked = readingRequest(text);                       // clear wording beats the model's guess
     if (asked && khassaid) Object.assign(o, asked);
+    // a Khassaid named in the question but absent from the library (or invented): said explicitly
+    const unknownKhassaid = !khassaid && typeof o.khassaid === 'string' && o.khassaid.trim().length > 2 ? o.khassaid.trim() : '';
     return {
+      unknownKhassaid,
       lang: ['fr', 'wo', 'en'].includes(o.lang) ? o.lang : fallback.lang,
       question: String(o.question || text).trim(),
       topic: String(o.topic || '').trim(),
@@ -227,8 +230,16 @@ const FORMULAS = ['صلى الله عليه وسلم', 'بسم الله الرح
   'رضي الله عنه', 'رحمه الله', 'إن شاء الله', 'الحمد لله رب العالمين', 'لا إله إلا الله محمد رسول الله', 'الله أكبر',
   'لا حول ولا قوة إلا بالله', 'جزاك الله خيرا', 'عليه السلام', 'خادم الرسول', 'سبحان الله', 'أستغفر الله'].map(S.arabicSkeleton);
 
+/** What the checks had to repair (per process): used by the exam and the quality tracking. */
+export const checkStats = { arabicFixed: 0, arabicRemoved: 0, refRewrites: 0 };
+
 export function checkArabic(reply) {
   const report = { fixed: 0, removed: [] };
+  // unusual spaces (narrow no-break space…) between Arabic words would split a passage into
+  // 1–2-word pieces that escape the check: make them normal spaces first
+  reply = String(reply).replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, ' ')
+    // some models leak their English reasoning before the answer ("We need a hadith… Let's search.")
+    .replace(/^(?:(?:We|I) (?:need|should|must|will)[^\n]*?(?:search|look)[^\n]*?\.\s*|Let's (?:search|look)[^\n]*?\.\s*)+/, '');
   const out = reply.replace(ARABIC_RUN, (run) => {
     const lead = run.match(/^\s*/)[0]; const trail = run.match(/\s*$/)[0];
     const core = run.trim();
@@ -241,6 +252,7 @@ export function checkArabic(reply) {
     report.removed.push(core.slice(0, 60));
     return `${lead}[texte arabe retiré : introuvable dans la bibliothèque]${trail}`;
   });
+  checkStats.arabicFixed += report.fixed; checkStats.arabicRemoved += report.removed.length;
   if (report.fixed || report.removed.length) console.warn(`[Check] Arabic: ${report.fixed} corrected, ${report.removed.length} removed ${report.removed.join(' | ')}`);
   return out;
 }
@@ -316,7 +328,12 @@ export async function answer(text, history = [], person = {}) {
 
   const refs = new Set();
   const [sources, notes] = await Promise.all([retrieve(u, refs), S.reviewedNotes().catch(() => '')]);
-  const systemInstruction = buildContext({ ...u, khassaid: u.khassaid ? S.khassaidInfo(u.khassaid).titre : '', sources, notes, person: personText(person, history) });
+  const warning = u.unknownKhassaid
+    ? `\nATTENTION : aucun Khassaid nommé « ${u.unknownKhassaid} » n'existe dans la bibliothèque des ${S.listKhassaids().split(', ').length} Khassaids. ` +
+      "Dis clairement que tu ne le trouves pas. Ne décris pas son contenu, ne dis pas qu'il existe, n'invente ni titre ni sujet. " +
+      "Tu peux proposer un Khassaid de la bibliothèque qui parle du même sujet, en le nommant correctement."
+    : '';
+  const systemInstruction = buildContext({ ...u, khassaid: u.khassaid ? S.khassaidInfo(u.khassaid).titre : '', sources: (sources || '') + warning, notes, person: personText(person, history) });
 
   const contents = [
     // the last 4 messages; the bot's own long answers shortened (the memory note keeps the rest)
@@ -352,6 +369,7 @@ export async function answer(text, history = [], person = {}) {
   const bad = unverifiedRefs(reply, refs);
   if (bad.length) {
     console.warn(`[Check] unverified references: ${bad.join(', ')} → rewrite`);
+    checkStats.refRewrites++;
     const fixed = await generateText({
       contents: [...contents, { role: 'model', parts: [{ text: reply }] },
         { role: 'user', parts: [{ text: `Vérification : ces références ne viennent pas de la bibliothèque : ${bad.join(', ')}. Réécris ta réponse complète en gardant tout le reste, mais enlève ces références (ou remplace-les par le sens général sans numéro). Ne mentionne pas cette vérification.` }] }],

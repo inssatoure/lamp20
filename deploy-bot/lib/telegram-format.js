@@ -56,7 +56,7 @@ export function toSpeech(md, lang = 'fr', recited = false, max = 2500) {
   const note = (recited ? RECITED_NOTE : ARABIC_NOTE)[lang] || (recited ? RECITED_NOTE : ARABIC_NOTE).fr;
   const AR = '؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿';
   const pbuh = { fr: 'paix et salut sur lui', wo: 'sallalaahu alayhi wa sallam', en: 'peace be upon him' }[lang] || 'paix et salut sur lui';
-  let s = String(md || '')
+  let s = String(md || '').replace(/[\u00a0\u2000-\u200b\u202f\u205f\u3000]/g, ' ')
     .replace(/\(?\s*ﷺ\s*\)?/g, ` (${pbuh}) `)
     .replace(new RegExp(`\\s*:?\\s*[«"]?\\s*[${AR}](?:[${AR}\\s/|]|[A-Za-z](?=[${AR}]))*\\s*[»"]?`, 'g'), (run) =>
       (run.replace(new RegExp(`[^${AR}]`, 'g'), '').length > 12 ? note : ' '))
