@@ -176,7 +176,7 @@ const PROVIDERS = {
   cerebras: { url: 'https://api.cerebras.ai/v1/chat/completions', key: CEREBRAS_API_KEY },
 };
 const hasProvider = (route) => !!PROVIDERS[route.split(':')[0]]?.key;
-const HAS_BACKUP = Object.values(PROVIDERS).some((p) => p.key);
+const HAS_BACKUP = ANSWER_ROUTES.some(hasProvider);     // a checked backup model exists: then Gemini gets a time budget
 
 async function groqCall(route, body) {
   const [provider, ...rest] = route.split(':');

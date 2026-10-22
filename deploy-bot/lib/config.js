@@ -51,7 +51,9 @@ export const CEREBRAS_API_KEY = process.env.CEREBRAS_API_KEY || '';
 // OpenAI-compatible providers, written "provider:model".
 // ANSWER_ROUTES: models allowed to write answers when Gemini can't — only models that passed the
 // LAMP exam (test/exam.mjs). LIGHT_ROUTE: small tasks (understanding, corrections, memory).
-export const ANSWER_ROUTES = (process.env.LAMP_ANSWER_ROUTES || 'groq:openai/gpt-oss-120b,groq:qwen/qwen3.8-27b,groq:openai/gpt-oss-20b').split(',').map((x) => x.trim()).filter(Boolean);
+// Exam of 22/10/2026: gpt-oss-120b REFUSED (invented a Khassaid, a hadith, a misquoted verse).
+// qwen-27b / gpt-oss-20b not tested (smaller): not allowed. Empty = Gemini only, never an unsafe answer.
+export const ANSWER_ROUTES = (process.env.LAMP_ANSWER_ROUTES || '').split(',').map((x) => x.trim()).filter(Boolean);
 export const LIGHT_ROUTE = process.env.LAMP_LIGHT_ROUTE || 'groq:openai/gpt-oss-20b';
 // For the exam only: every answer by this one model, no fallback (e.g. "cerebras:gpt-oss-120b", "gemini:gemini-3.8-flash")
 export const FORCE_ANSWER_MODEL = process.env.LAMP_ANSWER_MODEL || '';

@@ -103,10 +103,10 @@ function keepTyping(chatId) {
   return () => clearInterval(t);
 }
 
-const BUSY_MSG = {
-  fr: "Baal ma, LAMP est très sollicité en ce moment. Réessaie dans une minute, s'il te plaît.",
-  wo: 'Baal ma, LAMP dafa xèy lool léegi. Jéemaatal ci benn simili.',
-  en: 'Sorry, LAMP is very busy right now. Please try again in a minute.',
+const BUSY_MSG = {      // said when no checked model can answer: better no answer than an unsafe one
+  fr: "Baal ma, je ne peux pas te répondre de façon sûre en ce moment (les modèles vérifiés sont saturés). Réessaie dans quelques minutes, s'il te plaît.",
+  wo: 'Baal ma, mënuma la tontu ci anam gu wóor léegi. Jéemaatal ci ay simili, su la neexee.',
+  en: "Sorry, I can't give you a reliable answer right now (the checked models are busy). Please try again in a few minutes.",
 };
 
 // ─── one message at a time per chat (keeps the conversation in order) ────────

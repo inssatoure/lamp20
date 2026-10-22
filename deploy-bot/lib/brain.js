@@ -303,6 +303,60 @@ function readingAnswer(stem, debut, fin, lang) {
     text: `📖 **${r.titre}** — ${range} sur ${r.nombre_de_distiques}\n\n${body}${r.suite ? `\n\n➡️ ${r.suite}` : ''}` };
 }
 
+// ─── French quotations: a quote must match the verse / hadith it cites ────────
+// The model may put words in quotation marks and cite a real reference that says something else,
+// or quote "the Prophet" with no reference at all. Quotes of the Quran are replaced by the
+// library translation of the cited verse; hadith quotes that the library can't confirm are removed.
+// how much of the quote appears, in order, in the source: share of the quote's word pairs found
+// there (single shared words prove nothing in a long hadith)
+const wordList = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[’']/g, ' ').split(/[^a-z]+/).filter((w) => w.length >= 3);
+const overlap = (quote, source) => {
+  const q = wordList(quote); const src = wordList(source);
+  if (q.length < 3) return 1;
+  const pairs = new Set(src.slice(1).map((w, i) => `${src[i]} ${w}`));
+  let n = 0; for (let i = 1; i < q.length; i++) if (pairs.has(`${q[i - 1]} ${q[i]}`)) n++;
+  return n / (q.length - 1);
+};
+const PROPHET = /(proph[eè]te|ﷺ|messager d'allah|hadith|a dit|disait|enseign[ée])[^«\n]{0,60}$/i;
+const QREF = /^[^«\n]{0,60}?(?:\(|\*\*|coran|sourate)?\s*(\d{1,3})\s*:\s*(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?/i;
+const HREF = /^[^«\n]{0,80}?(bukh?ari|boukhari|muslim|dawud|daoud|malik|muwatta|nawawi)[^«\n]{0,40}?(?:n°|no\.|num[ée]ro|#)\s*(\d{1,5})/i;
+
+export const quoteStats = { quranReplaced: 0, hadithRemoved: 0 };
+export function checkQuotes(reply) {
+  return String(reply).replace(/«([^»\n]{12,700})»/g, (whole, quote, offset, all) => {
+    if (/[\u0600-\u06FF]/.test(quote) || quote.includes('[texte arabe retiré')) return whole;   // Arabic: checked elsewhere
+    const after = all.slice(offset + whole.length, offset + whole.length + 120);
+    const before = all.slice(Math.max(0, offset - 80), offset);
+    const q = after.match(QREF);
+    if (q) {
+      const r = S.readQuran(Number(q[1]), Number(q[2]), q[3] ? Number(q[3]) : null);
+      if (!r.versets) return whole;                      // unknown verse: the reference check handles it
+      const text = r.versets.map((v) => v.francais).join(' ');
+      if (overlap(quote, text) >= 0.6) return whole;
+      quoteStats.quranReplaced++;
+      console.warn(`[Check] quote does not match ${q[1]}:${q[2]} → library translation`);
+      return `« ${text} »`;
+    }
+    const h = after.match(HREF);
+    if (h) {
+      const r = S.readHadith(h[1], Number(h[2]));
+      if (r.texte && overlap(quote, r.texte) >= 0.5) return whole;
+      quoteStats.hadithRemoved++;
+      console.warn(`[Check] quote not found in hadith ${h[1]} n°${h[2]} → removed`);
+      return '« [citation retirée : elle ne correspond pas au texte de ce hadith dans la bibliothèque] »';
+    }
+    if (PROPHET.test(before)) {                          // a saying of the Prophet with no number: must exist somewhere
+      const best = S.searchHadith(quote, null, 8).reduce((m, x) => Math.max(m, overlap(quote, S.readHadith(x.recueil, x.numero).texte || '')), 0);
+      if (best >= 0.6) return whole;
+      quoteStats.hadithRemoved++;
+      console.warn('[Check] saying of the Prophet not found in the hadith library → removed');
+      return '« [parole retirée : introuvable dans les recueils de hadiths de la bibliothèque] »';
+    }
+    return whole;
+  });
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 /**
  * history: [{ role: 'user'|'model', text }] of the current conversation
@@ -377,7 +431,7 @@ export async function answer(text, history = [], person = {}) {
     }, 'answer', true);
     if (fixed && unverifiedRefs(fixed, refs).length < bad.length) reply = fixed;
   }
-  reply = checkArabic(reply);
+  reply = checkQuotes(checkArabic(reply));
   console.log(`[Brain] answered in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   const result = { text: reply, lang: u.lang, direct: false };
   if (cacheKey) CACHE.set(cacheKey, { until: Date.now() + 24 * 3600_000, r: result });

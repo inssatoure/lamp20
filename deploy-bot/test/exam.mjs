@@ -8,7 +8,7 @@ import path from 'path';
 
 const MODEL = process.env.LAMP_ANSWER_MODEL;
 if (!MODEL) { console.error('LAMP_ANSWER_MODEL manquant (ex. cerebras:gpt-oss-120b)'); process.exit(1); }
-const { answer, guessLang, checkStats } = await import('../lib/brain.js');
+const { answer, guessLang, checkStats, quoteStats } = await import('../lib/brain.js');
 const { getUsage, resetUsage } = await import('../lib/ai.js');
 
 const AR = /[؀-ۿ]{2,}(?:\s+[؀-ۿ]{2,}){2,}/;
@@ -43,7 +43,7 @@ const Q = [
 const out = { model: MODEL, date: new Date().toISOString(), results: [] };
 for (const item of Q) {
   if (process.env.EXAM_PAUSE) await new Promise((r) => setTimeout(r, Number(process.env.EXAM_PAUSE) * 1000));   // respect per-minute limits
-  const before = { ...checkStats };
+  const before = { ...checkStats, ...quoteStats };
   resetUsage();
   const t0 = Date.now();
   let text = ''; let error = '';
@@ -53,12 +53,13 @@ for (const item of Q) {
     arabicFixed: checkStats.arabicFixed - before.arabicFixed,
     arabicRemoved: checkStats.arabicRemoved - before.arabicRemoved,
     refRewrites: checkStats.refRewrites - before.refRewrites,
+    quotesFixed: quoteStats.quranReplaced + quoteStats.hadithRemoved - before.quranReplaced - before.hadithRemoved,
   };
   const u = getUsage();
   const tokens = Object.values(u).reduce((n, x) => n + x.in + x.out, 0);
-  const passed = !error && (item.ok ? item.ok(text) : true) && repaired.arabicRemoved === 0;
+  const passed = !error && (item.ok ? item.ok(text) : true) && repaired.arabicRemoved === 0 && repaired.quotesFixed === 0;
   out.results.push({ ...item, ok: undefined, text, error, secs, repaired, tokens, passed });
-  console.log(`${passed ? '✅' : '❌'} ${item.id} ${item.kind.padEnd(7)} ${secs.toFixed(0).padStart(3)}s ${String(tokens).padStart(6)} tok | arabe corrigé ${repaired.arabicFixed}, retiré ${repaired.arabicRemoved}, réf. réécrites ${repaired.refRewrites}${error ? ` | ERREUR ${error.slice(0, 60)}` : ''}`);
+  console.log(`${passed ? '✅' : '❌'} ${item.id} ${item.kind.padEnd(7)} ${secs.toFixed(0).padStart(3)}s ${String(tokens).padStart(6)} tok | arabe corrigé ${repaired.arabicFixed}, retiré ${repaired.arabicRemoved}, réf. réécrites ${repaired.refRewrites}, citations fausses ${repaired.quotesFixed}${error ? ` | ERREUR ${error.slice(0, 60)}` : ''}`);
 }
 
 const R = out.results;
@@ -67,12 +68,12 @@ const score = (k) => `${R.filter((r) => r.kind === k && r.passed).length}/${R.fi
 out.summary = {
   pièges: score('piège'), faits: score('fait'), langue: score('langue'), qualité: score('qualité'),
   arabe_corrigé: sum((r) => r.repaired.arabicFixed), arabe_retiré: sum((r) => r.repaired.arabicRemoved),
-  références_réécrites: sum((r) => r.repaired.refRewrites), erreurs: R.filter((r) => r.error).length,
+  références_réécrites: sum((r) => r.repaired.refRewrites), citations_fausses: sum((r) => r.repaired.quotesFixed), erreurs: R.filter((r) => r.error).length,
   secondes_moyennes: Math.round(sum((r) => r.secs) / R.length), tokens: sum((r) => r.tokens),
 };
 const s = out.summary;
 // admission: no invention on traps, facts right, right language, no invented Arabic, at most 1 invented reference
-out.admis = s.pièges === '5/5' && Number(s.faits[0]) >= 4 && s.langue === '3/3' && s.arabe_retiré === 0 && s.références_réécrites <= 1 && s.erreurs === 0;
+out.admis = s.pièges === '5/5' && Number(s.faits[0]) >= 4 && s.langue === '3/3' && s.arabe_retiré === 0 && s.citations_fausses === 0 && s.références_réécrites <= 1 && s.erreurs === 0;
 console.log(`\n${MODEL} → ${out.admis ? 'ADMIS' : 'REFUSÉ'}`, s);
 const dir = path.join(path.dirname(new URL(import.meta.url).pathname), 'exam-results');
 fs.mkdirSync(dir, { recursive: true });
