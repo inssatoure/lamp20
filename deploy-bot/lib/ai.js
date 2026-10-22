@@ -12,6 +12,21 @@ function killKey(k, msg) {
 /** `ai.models` always points at the first working key (used by TTS and embeddings). */
 export const ai = { get models() { return (liveKeys()[0] || KEYS[0]).client.models; } };
 
+// Voice has its own small daily quota per key: try each key until one still has some.
+const ttsSpent = new Map();   // key n -> until
+export async function withEachKey(fn) {
+  let lastErr;
+  for (const k of liveKeys()) {
+    if ((ttsSpent.get(k.n) || 0) > Date.now()) continue;
+    try { return await fn(k.client); } catch (e) {
+      lastErr = e;
+      if (/429|RESOURCE_EXHAUSTED|quota/i.test(String(e.message))) { ttsSpent.set(k.n, Date.now() + 60 * 60_000); continue; }
+      throw e;
+    }
+  }
+  throw lastErr || new Error('no key left for voice');
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function withTimeout(promise, ms = AI_TIMEOUT_MS, label = 'AI call') {
@@ -37,11 +52,15 @@ const isExhausted = (model) => (exhausted.get(model) || 0) > Date.now();
 export async function generate(params, chain = 'answer') {
   const models = MODELS[chain] || MODELS.answer;
   const timeout = chain === 'light' ? LIGHT_TIMEOUT_MS : AI_TIMEOUT_MS;
+  // when Google is overloaded, don't keep trying model after model: after this budget, Groq answers
+  const deadline = Date.now() + (chain === 'light' ? 15_000 : 35_000);
   let lastErr;
   for (const key of liveKeys()) {
+    if (Date.now() > deadline && GROQ_API_KEY) break;
   gemini: for (const model of models) {
     const slot = `${key.n}:${model}`;
     if (isExhausted(slot)) continue;
+    if (Date.now() > deadline && GROQ_API_KEY) { console.warn('[AI] Gemini too slow today → Groq'); break gemini; }
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const { toolRunner, _only, ...geminiParams } = params;

@@ -4,7 +4,7 @@
 //    engine (Whisper, Arabic) and compared with the library. An audio that does not match is not sent.
 import { execFile } from 'child_process';
 import { Modality } from '@google/genai';
-import { ai, withTimeout, groqTranscribe } from './ai.js';
+import { withEachKey, withTimeout, groqTranscribe } from './ai.js';
 import { MODELS, VOICES } from './config.js';
 import * as S from './sources.js';
 
@@ -46,11 +46,11 @@ async function quranAudio({ sura, ayah }) {
 }
 
 async function khassaidAudio({ text }) {
-  const r = await withTimeout(ai.models.generateContent({
+  const r = await withEachKey((c) => withTimeout(c.models.generateContent({
     model: MODELS.tts,
     contents: [{ parts: [{ text }] }],                        // the library text alone, nothing else
     config: { temperature: 0, responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICES.ar } } } },
-  }), 90_000, 'tts arabic');
+  }), 90_000, 'tts arabic'));
   const data = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData?.data;
   if (!data) throw new Error('no audio');
   const pcm = Buffer.from(data, 'base64');

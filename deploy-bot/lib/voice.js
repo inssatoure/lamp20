@@ -1,7 +1,7 @@
 // LAMP AI — voice reply (Gemini TTS → WAV, converted to OGG/Opus when ffmpeg exists)
 import { execFile } from 'child_process';
 import { Modality } from '@google/genai';
-import { ai, withTimeout, groqTranscribe } from './ai.js';
+import { withEachKey, withTimeout, groqTranscribe } from './ai.js';
 import { MODELS, VOICES } from './config.js';
 import { toSpeech } from './telegram-format.js';
 
@@ -64,11 +64,11 @@ export async function speak(text, lang = 'fr', recited = false) {
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const r = await withTimeout(ai.models.generateContent({
+      const r = await withEachKey((c) => withTimeout(c.models.generateContent({
         model: MODELS.tts,
         contents: [{ parts: [{ text: say }] }],     // the text alone: any instruction would be read aloud too
         config: { temperature: 0, responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICES[lang] || VOICES.fr } } } },
-      }), 120_000, 'tts');
+      }), 120_000, 'tts'));
       const data = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData?.data;
       if (!data) throw new Error('no audio returned');
       const pcm = Buffer.from(data, 'base64');

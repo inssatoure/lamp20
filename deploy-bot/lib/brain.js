@@ -324,11 +324,15 @@ Transcription : "${raw}"
 Corrige seulement les mots mal entendus, en gardant la langue et le sens d'origine (ne traduis pas, ne réponds pas à la question) :
 - un titre de Khassaid mal entendu → remplace-le par le bon titre. Titres qui sonnent le plus proche de ce message : ${S.soundAlikes(raw, 6).map((x) => x.title).join(', ')}. Liste complète : ${S.listKhassaids().replace(/ \(\d+\)/g, '')}
 - du wolof que le moteur a pris pour une autre langue (indonésien, malais, anglais…) → réécris-le en wolof d'après les sons
+- « verbes » est souvent « vers » (les distiques d'un Khassaid)
 - noms et termes religieux : ${VOICE_WORDS}
 Si la transcription est déjà correcte, renvoie-la telle quelle. Réponds uniquement par le texte corrigé.`,
     config: { temperature: 0 },
   }, 'light', true);
-  const out = fixed.replace(/^["«\s]+|["»\s]+$/g, '').trim();
+  let out = fixed.replace(/^["«\s]+|["»\s]+$/g, '').trim();
+  // a Khassaid title the person said clearly is never swapped for another one
+  const said = S.findKhassaid(raw);
+  if (out && said && S.findKhassaid(out) !== said) out = raw;
   // keep the correction only if it stays close in length (no answer, no explanation)
   return out && out.length < raw.length * 2 + 40 ? out : raw;
 }

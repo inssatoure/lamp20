@@ -63,8 +63,10 @@ setInterval(() => console.log(`[LAMP] alive — ${new Date().toISOString()} — 
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => {
-    console.log(`[LAMP] ${sig} — stopping`);
+    console.log(`[LAMP] ${sig} — stopping (finishing ${queues.size} answer(s) first)`);
     try { await bot.stopPolling(); } catch { /* ignore */ }
+    // a restart or redeploy never drops a question that is being answered
+    await Promise.race([Promise.allSettled([...queues.values()]), new Promise((r) => setTimeout(r, 90_000))]);
     process.exit(0);
   });
 }
