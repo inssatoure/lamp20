@@ -193,6 +193,34 @@ N'invente rien. Réponds uniquement par le carnet.`,
   return out.length > 10 && out.length < 2500 ? out.trim() : '';
 }
 
+// ─── Arabic quotations: only the library's exact text ─────────────────────────
+// The model sometimes miscopies a verse (a letter changed, a Latin "D" inside a word) or writes
+// Arabic from memory. Every Arabic passage of 3+ words is checked against the library: exact → kept,
+// miscopied → replaced by the library text, unknown → removed. Common formulas are allowed.
+const AR = '\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF';
+const ARABIC_RUN = new RegExp(`[${AR}](?:[${AR}\\s\\u200c-\\u200f]|[A-Za-z](?=[${AR}]))*`, 'g');
+const FORMULAS = ['صلى الله عليه وسلم', 'بسم الله الرحمن الرحيم', 'السلام عليكم ورحمة الله وبركاته', 'سبحانه وتعالى',
+  'رضي الله عنه', 'رحمه الله', 'إن شاء الله', 'الحمد لله رب العالمين', 'لا إله إلا الله محمد رسول الله', 'الله أكبر',
+  'لا حول ولا قوة إلا بالله', 'جزاك الله خيرا', 'عليه السلام', 'خادم الرسول', 'سبحان الله', 'أستغفر الله'].map(S.arabicSkeleton);
+
+export function checkArabic(reply) {
+  const report = { fixed: 0, removed: [] };
+  const out = reply.replace(ARABIC_RUN, (run) => {
+    const lead = run.match(/^\s*/)[0]; const trail = run.match(/\s*$/)[0];
+    const core = run.trim();
+    if (core.split(/\s+/).length < 3) return run;
+    const sk = S.arabicSkeleton(core);
+    if (FORMULAS.some((f) => f && (sk === f || (f.length > 8 && sk.includes(f) && sk.length < f.length + 12)))) return run;
+    const v = S.verifyArabic(core);
+    if (v.status === 'exact') return run;
+    if (v.status === 'fixed') { report.fixed++; return lead + v.text + trail; }
+    report.removed.push(core.slice(0, 60));
+    return `${lead}[texte arabe retiré : introuvable dans la bibliothèque]${trail}`;
+  });
+  if (report.fixed || report.removed.length) console.warn(`[Check] Arabic: ${report.fixed} corrected, ${report.removed.length} removed ${report.removed.join(' | ')}`);
+  return out;
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 /**
  * history: [{ role: 'user'|'model', text }] of the current conversation
@@ -251,6 +279,7 @@ export async function answer(text, history = [], person = {}) {
     }, 'answer', true);
     if (fixed && unverifiedRefs(fixed, refs).length < bad.length) reply = fixed;
   }
+  reply = checkArabic(reply);
   console.log(`[Brain] answered in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   return { text: reply, lang: u.lang, direct: false };
 }

@@ -424,3 +424,46 @@ export function warmUp() {
   loadVersets().catch(() => {});
   knowledgeBase().catch(() => {});
 }
+
+// ─── Arabic quotation check ──────────────────────────────────────────────────
+// Every Arabic passage the bot writes must exist, letter for letter, in the library
+// (Quran or Khassaids). verifyArabic() says if a passage is exact, gives the exact
+// library text when the model made a copying mistake, or says it is unknown.
+let ARABIC_LINES = null;   // [{ text, skel, ref }]
+function arabicLines() {
+  if (ARABIC_LINES) return ARABIC_LINES;
+  if (!KHASSAIDS.size) loadKhassaidFiles();
+  ARABIC_LINES = [];
+  for (const s of loadQuran()) for (const a of s.ayahs) ARABIC_LINES.push({ text: a.ar, skel: ARABIC_SKEL(a.ar), ref: `${s.num}:${a.n}` });
+  for (const k of KHASSAIDS.values()) {
+    k.verses.forEach(([h1, h2], i) => {
+      for (const h of [h1, h2]) if (h && h !== '*') ARABIC_LINES.push({ text: h, skel: ARABIC_SKEL(h), ref: `${k.title} ${i + 1}` });
+    });
+  }
+  return ARABIC_LINES;
+}
+
+export const arabicSkeleton = ARABIC_SKEL;
+
+/** { status: 'exact' | 'fixed' | 'unknown', text?, ref? } for one Arabic passage (one line / hemistich / verse). */
+export function verifyArabic(passage) {
+  const k = ARABIC_SKEL(passage);
+  if (k.length < 8) return { status: 'exact' };               // short formula (ﷺ, Bismillah…): not checked
+  const lines = arabicLines();
+  // 1. the passage is (part of) a library line, letters identical
+  const hit = lines.find((l) => l.skel.includes(k));
+  if (hit) {
+    if (hit.text.includes(passage.trim()) || hit.skel === k) return hit.skel === k && !hit.text.includes(passage.trim())
+      ? { status: 'fixed', text: hit.text, ref: hit.ref } : { status: 'exact', ref: hit.ref };
+    return { status: 'exact', ref: hit.ref };                  // same letters, only vowel marks differ in a partial quote
+  }
+  // 2. close to a library line: a copying mistake → give the exact line
+  let best = null; let score = 0;
+  for (const l of lines) {
+    if (Math.abs(l.skel.length - k.length) > k.length * 0.3) continue;
+    const d = dice(k, l.skel);
+    if (d > score) { score = d; best = l; }
+  }
+  if (best && score >= 0.72) return { status: 'fixed', text: best.text, ref: best.ref };
+  return { status: 'unknown' };
+}

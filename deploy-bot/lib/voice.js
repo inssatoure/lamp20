@@ -1,7 +1,7 @@
 // LAMP AI — voice reply (Gemini TTS → WAV, converted to OGG/Opus when ffmpeg exists)
 import { execFile } from 'child_process';
 import { Modality } from '@google/genai';
-import { ai, withTimeout } from './ai.js';
+import { ai, withTimeout, groqTranscribe } from './ai.js';
 import { MODELS, TTS_VOICE } from './config.js';
 import { toSpeech } from './telegram-format.js';
 
@@ -28,21 +28,47 @@ function wavToOgg(wav) {
   });
 }
 
-/** Returns { buffer, filename, contentType, isVoice } or null when there is nothing to say. */
-export async function speak(text) {
-  const say = toSpeech(text);
+// The speech model must read the text, not "perform" it. It never gets Arabic text (see toSpeech),
+// and each audio is checked before sending: length, no Arabic spoken, no words that are not written.
+const seconds = (pcm) => pcm.length / (24000 * 2);
+async function looksFaithful(pcm, wav, say, lang) {
+  const dur = seconds(pcm);
+  const expected = say.length / 14;                          // ~14 characters per second of speech
+  if (dur > expected * 1.7 + 6) return `audio trop long (${dur.toFixed(0)}s pour ~${expected.toFixed(0)}s)`;
+  const heard = await groqTranscribe(wav, 'audio/wav').catch(() => '');
+  if (heard) {
+    const arabicWords = (heard.match(/[\u0600-\u06FF]{2,}/g) || []).length;
+    if (arabicWords >= 3) return `de l'arabe a été prononcé (${arabicWords} mots)`;
+    if (heard.length > say.length * 1.6 + 60) return 'texte prononcé plus long que le texte écrit';
+    if (lang !== 'wo') {                                     // Whisper does not know Wolof: word check only in fr/en
+      const norm = (x) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z]+/).filter((w) => w.length > 3);
+      const written = new Set(norm(say));
+      const words = norm(heard);
+      const extra = words.filter((w) => !written.has(w)).length;
+      if (words.length > 8 && extra / words.length > 0.3) return `mots ajoutés (${extra}/${words.length})`;
+    }
+  }
+  return '';
+}
+
+/** Returns { buffer, filename, contentType, isVoice } or null when there is nothing to say (or the audio is not faithful). */
+export async function speak(text, lang = 'fr') {
+  const say = toSpeech(text, lang);
   if (say.length < 3) return null;
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const r = await withTimeout(ai.models.generateContent({
         model: MODELS.tts,
-        contents: [{ parts: [{ text: say }] }],
-        config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: TTS_VOICE } } } },
-      }), 90_000, 'tts');
+        contents: [{ parts: [{ text: say }] }],     // the text alone: any instruction would be read aloud too
+        config: { temperature: 0, responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: TTS_VOICE } } } },
+      }), 120_000, 'tts');
       const data = r.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData?.data;
       if (!data) throw new Error('no audio returned');
-      const wav = pcmToWav(Buffer.from(data, 'base64'));
+      const pcm = Buffer.from(data, 'base64');
+      const wav = pcmToWav(pcm);
+      const problem = await looksFaithful(pcm, wav, say, lang);
+      if (problem) { console.warn(`[Voice] audio rejected: ${problem}`); lastErr = new Error(problem); continue; }
       if (await hasFfmpeg()) {
         try { return { buffer: await wavToOgg(wav), filename: 'lamp.ogg', contentType: 'audio/ogg', isVoice: true }; } catch { /* send wav */ }
       }
@@ -53,5 +79,6 @@ export async function speak(text) {
       await new Promise((r) => setTimeout(r, 2000));
     }
   }
-  throw lastErr;
+  console.warn(`[Voice] no voice note sent: ${lastErr?.message || 'unknown'}`);
+  return null;                                               // the written answer is enough
 }

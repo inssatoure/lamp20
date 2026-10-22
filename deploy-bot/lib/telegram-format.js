@@ -38,16 +38,30 @@ export function splitMessage(text, max = 3800) {
 }
 
 /** Text for the voice note: no Arabic script (the voice can't read it), no Markdown, ~900 chars. */
-export function toSpeech(md, max = 900) {
+// Spoken version of an answer. Arabic text is NEVER given to the voice engine: a speech model
+// does not read sacred text faithfully (it can change or invent verses). The voice says instead
+// that the Arabic is in the written message.
+const ARABIC_NOTE = {
+  fr: ' (le texte arabe est dans le message écrit) ',
+  wo: ' (mbind mi ci araab mi, mu ngi ci bataaxal bi) ',
+  en: ' (the Arabic text is in the written message) ',
+};
+const MORE_NOTE = { fr: ' La suite est dans le message écrit.', wo: ' Li ci des, mu ngi ci bataaxal bi.', en: ' The rest is in the written message.' };
+export function toSpeech(md, lang = 'fr', max = 2500) {
+  const AR = '؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿';
+  const pbuh = { fr: 'paix et salut sur lui', wo: 'sallalaahu alayhi wa sallam', en: 'peace be upon him' }[lang] || 'paix et salut sur lui';
   let s = String(md || '')
-    .replace(/[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]+/g, ' ')
+    .replace(/\(?\s*ﷺ\s*\)?/g, ` (${pbuh}) `)
+    .replace(new RegExp(`[«"]?\\s*[${AR}](?:[${AR}\\s/|]|[A-Za-z](?=[${AR}]))*\\s*[»"]?`, 'g'), (run) =>
+      (run.replace(new RegExp(`[^${AR}]`, 'g'), '').length > 12 ? ARABIC_NOTE[lang] || ARABIC_NOTE.fr : ' '))
     .replace(/\*\*|__|[*_`#>▎•]/g, '')
     .replace(/\((?:\d{1,3}:\d{1,3}|[^)]*n°\s*\d+[^)]*)\)/g, '')     // references are for reading, not hearing
-    .replace(/«\s*»/g, '').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
+    .replace(/(\([^)]*\)\s*){2,}/g, (m) => m.match(/\([^)]*\)/)[0] + ' ')
+    .replace(/«\s*»|\(\s*\)/g, '').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
   if (s.length > max) {
     const cut = s.slice(0, max);
     const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '), cut.lastIndexOf('\n'));
-    s = end > max * 0.5 ? cut.slice(0, end + 1) : cut + '…';
+    s = (end > max * 0.5 ? cut.slice(0, end + 1) : cut) + (MORE_NOTE[lang] || MORE_NOTE.fr);
   }
   return s;
 }

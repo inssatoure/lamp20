@@ -80,11 +80,11 @@ async function send(chatId, md, opts = {}) {
   }
 }
 
-async function sendVoiceReply(chatId, text) {
+async function sendVoiceReply(chatId, text, lang = 'fr') {
   if (!VOICE_REPLY) return;
   try {
     bot.sendChatAction(chatId, 'record_voice').catch(() => {});
-    const audio = await speak(text);
+    const audio = await speak(text, lang);
     if (!audio) return;
     const fileOpts = { filename: audio.filename, contentType: audio.contentType };
     if (audio.isVoice) await bot.sendVoice(chatId, audio.buffer, {}, fileOpts);
@@ -126,7 +126,7 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
     stop();
     await send(chatId, r.text);
     await addExchange(chatId, msg.from, question, r.text, { lang, voice: fromVoice });
-    if (!r.direct) await sendVoiceReply(chatId, r.text);
+    if (!r.direct) await sendVoiceReply(chatId, r.text, r.lang);
   } catch (e) {
     stop();
     console.error('[Answer] failed:', e?.message || e);
