@@ -156,22 +156,38 @@ async function groqChat(params) {
 }
 
 /** Speech → text with Groq Whisper (backup when Gemini can't transcribe). */
-export async function groqTranscribe(buffer, mimeType) {
+// Whisper has no Wolof: left alone it guesses another language (Indonesian, Malay…) and
+// writes nonsense. So we give it the usual vocabulary, and if it still picks a language
+// other than French / English / Arabic we redo it forcing French — Wolof then comes out
+// in the French-style spelling Senegalese people write it with ("dama bëgg", "yaw yay kan").
+const WHISPER_OK = new Set(['french', 'english', 'arabic', 'fr', 'en', 'ar']);
+export async function groqTranscribe(buffer, mimeType, vocabulary = '') {
   if (!GROQ_API_KEY) return '';
   const ext = /ogg|opus/.test(mimeType) ? 'ogg' : /mp4|m4a/.test(mimeType) ? 'm4a' : /wav/.test(mimeType) ? 'wav' : 'mp3';
+  const call = async (model, language) => {
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: mimeType }), `audio.${ext}`);
+    form.append('model', model);
+    form.append('temperature', '0');
+    form.append('response_format', 'verbose_json');
+    if (vocabulary) form.append('prompt', vocabulary.slice(0, 850));
+    if (language) form.append('language', language);
+    const res = await withTimeout(fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST', headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, body: form,
+    }), AI_TIMEOUT_MS, `groq ${model}`);
+    if (!res.ok) throw new Error(`${model} ${res.status}`);
+    const j = await res.json();
+    return { text: (j.text || '').trim(), language: String(j.language || '').toLowerCase() };
+  };
   for (const model of ['whisper-large-v3', 'whisper-large-v3-turbo']) {
     try {
-      const form = new FormData();
-      form.append('file', new Blob([buffer], { type: mimeType }), `audio.${ext}`);
-      form.append('model', model);
-      form.append('temperature', '0');
-      const res = await withTimeout(fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST', headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, body: form,
-      }), AI_TIMEOUT_MS, `groq ${model}`);
-      if (!res.ok) { console.warn(`[Groq] ${model} ${res.status}`); continue; }
-      const text = ((await res.json()).text || '').trim();
-      if (text) { console.warn(`[Groq] transcribed with ${model}`); return text; }
-    } catch (e) { console.warn(`[Groq] ${model}: ${e.message}`); }
+      let r = await call(model);
+      if (r.text && !WHISPER_OK.has(r.language)) {
+        console.warn(`[Groq] Whisper heard "${r.language}" → redo as French (probably Wolof)`);
+        r = await call(model, 'fr');
+      }
+      if (r.text) { console.warn(`[Groq] transcribed with ${model}`); return r.text; }
+    } catch (e) { console.warn(`[Groq] ${e.message}`); }
   }
   return '';
 }

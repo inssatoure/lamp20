@@ -216,22 +216,49 @@ export async function answer(text, history = []) {
 }
 
 /** Speech → text (Gemini hears Wolof, French, Arabic). */
+// Words a speaker of LAMP is likely to say: helps both speech engines spell them right.
+const VOICE_WORDS = 'Serigne Touba, Cheikh Ahmadou Bamba, Khassaïd, Khassida, Mouride, Touba, Magal, Daara, ' +
+  'talibé, Borom Touba, Mame Diarra Bousso, Serigne Saliou, Yàlla, jërëjëf, dama bëgg, nanga def, yaw yay kan, ' +
+  'Wa kaana haqqan, Mawahibu, Jazbul Qulub, Matlabul Fawzayni, Nuru Darayni, Jalibatul Maraghib, Mafatihul Bishri, ' +
+  'Tazawudu Sighar, Masalikul Jinan, Asma ul Husna, Bismillah, Alhamdulillah, Inshallah, hadith, sourate, Coran.';
+
 export async function transcribe(buffer, mimeType) {
+  let raw = '';
   try {
-    const t = await transcribeGemini(buffer, mimeType);
-    if (t) return t;
+    raw = await transcribeGemini(buffer, mimeType);
   } catch (e) {
     console.warn('[Brain] Gemini transcription failed:', e.message.slice(0, 80));
   }
-  return groqTranscribe(buffer, mimeType);     // Whisper backup
+  if (!raw) raw = await groqTranscribe(buffer, mimeType, VOICE_WORDS);     // Whisper backup
+  return raw ? fixTranscript(raw) : '';
 }
 
 async function transcribeGemini(buffer, mimeType) {
   return generateText({
     contents: [{ role: 'user', parts: [
       { inlineData: { mimeType, data: buffer.toString('base64') } },
-      { text: 'Transcris exactement ce qui est dit, dans la langue parlée (wolof, français, arabe ou anglais). Réponds uniquement par la transcription. Si rien n\'est audible, réponds par un texte vide.' },
+      { text: `Transcris exactement ce qui est dit, dans la langue parlée (souvent du wolof mêlé de français et d'arabe). Écris le wolof avec l'orthographe sénégalaise habituelle, sans traduire. Vocabulaire fréquent : ${VOICE_WORDS} Réponds uniquement par la transcription. Si rien n'est audible, réponds par un texte vide.` },
     ] }],
     config: { temperature: 0 },
   }, 'answer');
+}
+
+// Speech engines mishear Wolof and Arabic titles ("Ouakka Lahakam" for "Wa kaana haqqan").
+// A quick text pass puts back the right words, using the real list of Khassaid titles.
+export async function fixTranscript(raw) {
+  const fixed = await generateText({
+    contents: `Transcription automatique d'un message vocal d'un Sénégalais qui parle à un assistant sur l'islam et le mouridisme (wolof, français, arabe mélangés). Le moteur se trompe souvent sur le wolof et les mots arabes.
+
+Transcription : "${raw}"
+
+Corrige seulement les mots mal entendus, en gardant la langue et le sens d'origine (ne traduis pas, ne réponds pas à la question) :
+- un titre de Khassaid mal entendu → remplace-le par le bon titre. Titres qui sonnent le plus proche de ce message : ${S.soundAlikes(raw, 6).map((x) => x.title).join(', ')}. Liste complète : ${S.listKhassaids().replace(/ \(\d+\)/g, '')}
+- du wolof que le moteur a pris pour une autre langue (indonésien, malais, anglais…) → réécris-le en wolof d'après les sons
+- noms et termes religieux : ${VOICE_WORDS}
+Si la transcription est déjà correcte, renvoie-la telle quelle. Réponds uniquement par le texte corrigé.`,
+    config: { temperature: 0 },
+  }, 'light', true);
+  const out = fixed.replace(/^["«\s]+|["»\s]+$/g, '').trim();
+  // keep the correction only if it stays close in length (no answer, no explanation)
+  return out && out.length < raw.length * 2 + 40 ? out : raw;
 }

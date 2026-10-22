@@ -85,7 +85,27 @@ export function findKhassaid(text) {
     const shared = [...KHASSAIDS.keys()].filter((o) => titleKey(o.split('_')[0]) === first).length;
     if (shared === 1 && words.some((w) => w.startsWith(first) || first.startsWith(w))) return k;
   }
-  return null;
+  // 4. sound-alike, for voice messages ("wakana hakan" → Wa kaana haqqan)
+  const [top] = soundAlikes(text, 1);
+  return top && top.score >= 0.72 ? top.stem : null;
+}
+
+const sound = (x) => titleKey(x).replace(/q|kh|x|g/g, 'k').replace(/h/g, '').replace(/w/g, 'u').replace(/e/g, 'i').replace(/o/g, 'u').replace(/(.)\1+/g, '$1');
+const soundGrams = (x) => { const m = new Map(); for (let i = 0; i < x.length - 1; i++) m.set(x.slice(i, i + 2), (m.get(x.slice(i, i + 2)) || 0) + 1); return m; };
+const soundDice = (a, b) => { const A = soundGrams(a), B = soundGrams(b); let n = 0; for (const [g, c] of A) n += Math.min(c, B.get(g) || 0); return (2 * n) / Math.max(1, a.length + b.length - 2); };
+/** Khassaid titles that sound closest to some part of the text (best first). */
+export function soundAlikes(text, n = 5) {
+  if (!KHASSAIDS.size) loadKhassaidFiles();
+  const qs = sound(text || '');
+  const out = [];
+  for (const [k, v] of KHASSAIDS) {
+    const t = sound(k);
+    if (t.length < 6) continue;
+    let best = 0;
+    for (let i = 0; i + t.length <= qs.length + 2; i++) best = Math.max(best, soundDice(t, qs.slice(i, i + t.length)));
+    out.push({ stem: k, title: v.title, score: best });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, n);
 }
 
 export function khassaidInfo(stemName) {
