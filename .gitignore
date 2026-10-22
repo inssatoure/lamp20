@@ -27,6 +27,7 @@ dist-ssr
 versets_cache.jsonl
 chat_histories.json
 chat_logs.jsonl
+data/
 sources/
 deploy-bot/.env
 versets_cache.jsonl.tmp

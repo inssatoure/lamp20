@@ -32,6 +32,13 @@ export const SOURCES_DIR = path.join(ROOT_DIR, 'sources');          // Coran + h
 export const VERSETS_CACHE = path.join(ROOT_DIR, 'versets_cache.jsonl');
 export const HISTORY_FILE = path.join(ROOT_DIR, 'chat_histories.json');
 export const CHAT_LOG_FILE = path.join(ROOT_DIR, 'chat_logs.jsonl');
+// Where users' conversations and memories are kept (local backend). On Railway: a volume, e.g. /data
+export const DATA_DIR = process.env.LAMP_DATA_DIR || path.join(ROOT_DIR, 'data');
+// Firebase service account (JSON text or file path): stores conversations in Firestore instead of files
+export const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT || '';
+// Admin page to read the conversations: http://<server>:<PORT>/admin  (off if no password)
+export const ADMIN_PASSWORD = process.env.LAMP_ADMIN_PASSWORD || '';
+export const PORT = Number(process.env.PORT || 0);
 
 // Models. Each model has its own free quota, so the chain moves on when one is exhausted.
 export const MODELS = {

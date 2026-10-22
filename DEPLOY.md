@@ -62,3 +62,16 @@ Deux programmes utilisent le même token (ancien serveur, pm2, ordinateur local)
   }
   ```
 - **Bot Telegram** : Un seul processus peut utiliser le même token en mode polling. Si tu le lances en local ET sur le serveur, il y aura des conflits. Arrête le local avant.
+
+
+## Mémoire des utilisateurs et lecture des conversations
+
+- Chaque personne a sa mémoire : le bot se souvient d'elle d'une fois sur l'autre (prénom, sujets, ce qu'elle apprend).
+  Une conversation recommence après 6 h de silence ou avec /clear ; la mémoire, elle, reste. /oublie efface tout.
+- Les messages sont gardés dans `LAMP_DATA_DIR` (un fichier par personne). Ce dossier doit survivre aux mises à jour :
+  sur Railway, créer un volume (ex. `/data`) et mettre `LAMP_DATA_DIR=/data`.
+- Pour lire les conversations : mettre `LAMP_ADMIN_PASSWORD` et `PORT`, puis ouvrir `https://<adresse>/admin`
+  (identifiant `admin`). Sur Railway, activer un domaine public pour le service.
+- Option Firestore : mettre `FIREBASE_SERVICE_ACCOUNT` (compte de service du projet Firebase). Les conversations vont
+  alors dans la collection `lamp_users`. Avant cela, fermer les règles Firestore au public (aujourd'hui tout le monde
+  peut lire et écrire la base avec la clé web, qui est dans le dépôt public).

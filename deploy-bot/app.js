@@ -19,7 +19,8 @@ if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
 
 const { answer, transcribe } = await import('./lib/brain.js');
 const { warmUp, listKhassaids } = await import('./lib/sources.js');
-const { getHistory, addExchange, clearHistory, activeChats, logInteraction } = await import('./lib/history.js');
+const { getContext, addExchange, newSession, forgetUser, activeChats } = await import('./lib/history.js');
+const { startAdmin } = await import('./lib/admin.js');
 const { toTelegramHtml, toPlain, splitMessage } = await import('./lib/telegram-format.js');
 const { speak } = await import('./lib/voice.js');
 
@@ -119,12 +120,12 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
   const stop = keepTyping(chatId);
   let lang = 'fr';
   try {
-    const r = await answer(question, getHistory(chatId));
+    const ctx = await getContext(chatId);
+    const r = await answer(question, ctx.history, ctx);
     lang = r.lang;
     stop();
     await send(chatId, r.text);
-    addExchange(chatId, question, r.text);
-    logInteraction(chatId, msg.from?.username || msg.from?.first_name, question, r.text, { lang, voice: fromVoice });
+    await addExchange(chatId, msg.from, question, r.text, { lang, voice: fromVoice });
     if (!r.direct) await sendVoiceReply(chatId, r.text);
   } catch (e) {
     stop();
@@ -144,7 +145,8 @@ bot.onText(/^\/start\b/, (msg) => {
     `de la **Sunna** du Prophète (ﷺ) et des **enseignements de Cheikh Ahmadou Bamba**.\n\n` +
     `Écris-moi ou envoie un vocal, en français, en wolof ou en anglais.\n\n` +
     `Essaie :\n• Que disent les Khassaids sur la patience ?\n• Lis-moi les 5 premiers distiques de Jazbul Qulub\n• Naka la Serigne Touba gisé liggéey ?\n\n` +
-    `/khassaids — la liste des Khassaids de la bibliothèque\n/clear — nouvelle conversation`);
+    `Je me souviens de nos échanges d'une fois sur l'autre. Nos conversations sont enregistrées pour cela et pour améliorer LAMP.\n\n` +
+    `/khassaids — la liste des Khassaids de la bibliothèque\n/clear — nouvelle conversation\n/oublie — effacer tout ce que je sais de toi`);
 });
 
 bot.onText(/^\/help\b/, (msg) => send(msg.chat.id,
@@ -153,11 +155,21 @@ bot.onText(/^\/help\b/, (msg) => send(msg.chat.id,
   `• Texte d'un Khassaid : « Donne-moi les 10 premiers distiques de Mawahibu »\n` +
   `• Wolof : « Lan la Serigne Touba wax ci muñ ? »\n\n` +
   `Les citations viennent d'une bibliothèque vérifiée (Coran, Bukhari, Muslim, Abu Dawud, Malik, Nawawi, 122 Khassaids).\n\n` +
-  `/khassaids — liste · /clear — nouvelle conversation`));
+  `/khassaids — liste · /clear — nouvelle conversation · /oublie — tout effacer`));
 
-bot.onText(/^\/clear\b/, (msg) => {
-  clearHistory(msg.chat.id);
-  send(msg.chat.id, 'Nouvelle conversation. As-salamu alaykum.');
+bot.onText(/^\/clear\b/, async (msg) => {
+  await newSession(msg.chat.id).catch(() => {});
+  send(msg.chat.id, 'Nouvelle conversation. Je garde en mémoire ce que je sais de toi (/oublie pour tout effacer). As-salamu alaykum.');
+});
+
+bot.onText(/^\/oublie\b/, async (msg) => {
+  try {
+    await forgetUser(msg.chat.id);
+    send(msg.chat.id, "C'est fait : j'ai effacé nos conversations et tout ce que je savais de toi.");
+  } catch (e) {
+    console.error('[Forget]', e.message);
+    send(msg.chat.id, "Je n'ai pas pu tout effacer. Réessaie dans un instant.");
+  }
 });
 
 bot.onText(/^\/khassaids\b/, (msg) => send(msg.chat.id, `📚 **Khassaids de la bibliothèque** (nombre de distiques) :\n\n${listKhassaids()}`));
@@ -214,3 +226,6 @@ bot.deleteWebHook()
     bot.getMe().then((me) => console.log(`[LAMP] Started — polling Telegram as @${me.username}`))
       .catch((e) => console.error('[LAMP] getMe failed:', e.message));
   });
+
+// Admin page to read the conversations (only if LAMP_ADMIN_PASSWORD and PORT are set)
+startAdmin();

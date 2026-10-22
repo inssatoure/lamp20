@@ -157,9 +157,49 @@ export function unverifiedRefs(answer, refs) {
   return [...bad];
 }
 
+// ─── memory of the person ────────────────────────────────────────────────────
+function personText({ memory, name, pauseDays, returning } = {}, history = []) {
+  const lines = [];
+  if (name) lines.push(`Prénom/nom Telegram : ${name}`);
+  if (returning && !history.length && pauseDays != null) {
+    lines.push(pauseDays >= 1 ? `Elle revient après ${pauseDays} jour(s) sans échange.` : 'Elle revient après quelques heures.');
+  }
+  if (memory) lines.push(`Ce que tu sais d'elle (conversations passées) :\n${memory}`);
+  else if (!returning) lines.push("C'est votre première conversation.");
+  return lines.join('\n');
+}
+
+/** Rewrites the long-term memory of a person from the last messages. Returns '' on failure. */
+export async function updateMemory(oldMemory, recent, name) {
+  const talk = recent.map((m) => `${m.role === 'user' ? 'Personne' : 'LAMP'}: ${m.text.slice(0, 600)}`).join('\n');
+  const out = await generateText({
+    contents: `Tu tiens le carnet de mémoire de LAMP AI (assistant mouride) sur une personne${name ? ` (${name})` : ''}.
+
+Carnet actuel :
+${oldMemory || '(vide)'}
+
+Derniers échanges :
+${talk}
+
+Réécris le carnet complet en 10 lignes maximum, en français, une info par ligne commençant par "- " :
+- comment l'appeler, langue préférée (wolof/français/anglais), ce qu'elle dit d'elle-même si c'est utile (ex. étudiant, commerçant, vit à Touba)
+- les sujets et Khassaids dont vous avez parlé, ce qu'elle cherche ou apprend, les questions restées ouvertes
+- ses préférences (réponses courtes, en vocal…)
+Garde les infos anciennes encore utiles, ajoute les nouvelles, enlève les détails inutiles.
+N'écris RIEN sur la santé, l'argent, la vie intime, les conflits familiaux ou d'autres détails sensibles, même s'ils ont été dits.
+N'invente rien. Réponds uniquement par le carnet.`,
+    config: { temperature: 0.2 },
+  }, 'light', true);
+  return out.length > 10 && out.length < 2500 ? out.trim() : '';
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
-/** history: [{ role: 'user'|'model', text }]. Returns { text, lang, direct } */
-export async function answer(text, history = []) {
+/**
+ * history: [{ role: 'user'|'model', text }] of the current conversation
+ * person: { memory, name, pauseDays, returning } from lib/history.js
+ * Returns { text, lang, direct }
+ */
+export async function answer(text, history = [], person = {}) {
   const t0 = Date.now();
   const u = await understand(text, history);
   console.log(`[Brain] lang=${u.lang} khassaid=${u.khassaid || '-'} topic="${u.topic}" q="${u.question.slice(0, 80)}"`);
@@ -176,7 +216,7 @@ export async function answer(text, history = []) {
 
   const refs = new Set();
   const [sources, notes] = await Promise.all([retrieve(u, refs), S.reviewedNotes().catch(() => '')]);
-  const systemInstruction = buildContext({ ...u, khassaid: u.khassaid ? S.khassaidInfo(u.khassaid).titre : '', sources, notes });
+  const systemInstruction = buildContext({ ...u, khassaid: u.khassaid ? S.khassaidInfo(u.khassaid).titre : '', sources, notes, person: personText(person, history) });
 
   const contents = [
     ...history.slice(-8).map((m) => ({ role: m.role, parts: [{ text: m.text }] })),

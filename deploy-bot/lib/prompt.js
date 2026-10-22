@@ -43,14 +43,20 @@ Les passages déjà trouvés pour cette question sont dans <SOURCES_TROUVEES>. S
 - Coran : utilise la traduction Hamidullah fournie, mot pour mot.
 - Longueur : 5 à 15 phrases. Plus long seulement si on demande un texte complet.
 - Pas de formules creuses, pas de répétition de la question. Salutation courte seulement si la personne salue.
-- Mise en forme simple : **gras** pour les références, pas de tableaux, pas de titres #.`;
+- Mise en forme simple : **gras** pour les références, pas de tableaux, pas de titres #.
 
-export function buildContext({ lang, question, topic, khassaid, sources, notes }) {
+## MÉMOIRE
+<PERSONNE> contient ce que tu sais de cette personne grâce à vos conversations passées.
+Sers-t'en naturellement, comme un frère qui se souvient : son prénom, les sujets déjà abordés, ce qu'elle cherchait.
+Si elle revient après plusieurs jours, tu peux faire le lien avec votre dernier échange, en une phrase, sans le réciter.
+Ne prétends jamais te souvenir de quelque chose qui n'est pas dans <PERSONNE> ou dans la conversation.`;
+
+export function buildContext({ lang, question, topic, khassaid, sources, notes, person }) {
   const langName = { wo: 'WOLOF', en: 'ANGLAIS', fr: 'FRANÇAIS' }[lang] || 'FRANÇAIS';
   return `${SYSTEM_PROMPT}
 
 <LANGUE_DE_REPONSE>${langName}</LANGUE_DE_REPONSE>
-<QUESTION_COMPRISE>${question}${topic ? ` (sujet : ${topic})` : ''}${khassaid ? ` (Khassaid : ${khassaid})` : ''}</QUESTION_COMPRISE>
+${person ? `<PERSONNE>\n${person}\n</PERSONNE>\n` : ''}<QUESTION_COMPRISE>${question}${topic ? ` (sujet : ${topic})` : ''}${khassaid ? ` (Khassaid : ${khassaid})` : ''}</QUESTION_COMPRISE>
 ${notes ? `<NOTES_ORTHOGRAPHE>\n${notes}\n</NOTES_ORTHOGRAPHE>\n` : ''}<SOURCES_TROUVEES>
 ${sources || 'Rien de trouvé automatiquement : utilise les outils pour chercher.'}
 </SOURCES_TROUVEES>`;
