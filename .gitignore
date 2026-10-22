@@ -29,3 +29,5 @@ chat_histories.json
 chat_logs.jsonl
 sources/
 deploy-bot/.env
+versets_cache.jsonl.tmp
+versets_cache.jsonl.new
