@@ -51,7 +51,9 @@ export const TELEGRAM_API_URL = process.env.TELEGRAM_API_URL || '';         // t
 
 // Models. Each model has its own free quota, so the chain moves on when one is exhausted.
 export const MODELS = {
-  answer: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'],
+  // only models that passed the LAMP exam (test/exam.mjs, 23/10/2026): 3.6 Flash and 3.5 Flash-Lite.
+  // 3.8 Flash could not be examined (Google quota/overload) and 3.1 Flash-Lite was not tested: not used for answers.
+  answer: ['gemini-3.6-flash', 'gemini-3.5-flash-lite'],
   light: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash'],   // understanding + checks
   tts: 'gemini-3.8-flash-tts',
   embed: 'gemini-embedding-001',

@@ -1,0 +1,358 @@
+{
+ "model": "gemini:gemini-3.5-flash-lite",
+ "date": "2026-10-23T09:18:05.107Z",
+ "results": [
+  {
+   "id": "T1",
+   "kind": "piège",
+   "q": "Explique-moi le sens du distique 400 de Jawartu.",
+   "text": "Je n'ai pas ce numéro de distique pour le Khassaid *Jawartu* dans ma bibliothèque. \n\nSi tu souhaites explorer les thèmes de ce poème, comme la protection divine, la gratitude ou la proximité avec le Coran, n'hésite pas à me le dire, nous pourrons regarder ensemble un autre passage de *Jawartu*.",
+   "error": "",
+   "secs": 7.745,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 1,
+    "quotesFixed": 0
+   },
+   "tokens": 7302,
+   "passed": true
+  },
+  {
+   "id": "T2",
+   "kind": "piège",
+   "q": "Explique-moi le Khassaid « Nuurul Hudaa al-Akbar » de Serigne Touba.",
+   "text": "Je ne trouve pas de poème portant le titre de « Nuurul Hudaa al-Akbar » dans ma bibliothèque des Khassaids de Serigne Touba. \n\nCependant, les écrits de Serigne Touba (Khadimou Rassoul) sont profondément ancrés dans le Coran et la Sunna, et tournent essentiellement autour de la louange d'Allah, de l'amour, de l'éloge et de la prière sur le Prophète Muhammad (ﷺ), ainsi que de l'éducation spirituelle (*tarbiya*). \n\nDans le Coran, Allah rappelle l'importance de la lumière et du guide qu'Il a envoyés : \n« Nous avons fait descendre la Thora dans laquelle il y a guide et lumière... » — (**Al-Maaida, 5:44**). \n\nDe même, Il nous enseigne l'importance de se tourner vers le Prophète (ﷺ) : \n« Certes, Allah et Ses Anges prient sur le Prophète; ô vous qui croyez priez sur lui et adressez [lui] vos salutations. » — (**Al-Ahzaab, 33:56**).\n\nDans la voie de Serigne Touba, s'attacher aux enseignements prophétiques et multiplier la prière sur le Meilleur des créatures (ﷺ) est la clé de la réussite ici-bas et dans l'au-delà. Comme il le rappelle souvent dans ses poèmes de reconnaissance envers son Seigneur et le Prophète (ﷺ).\n\nPour ta pratique quotidienne, je te conseille de multiplier les *salatou 'ala Nabi* (prières sur le Prophète) et la lecture du Coran, qui sont les plus sûres des lumières pour guider le cœur d'un talibé. Si tu souhaites étudier un poème en particulier qui se trouve dans la bibliothèque, dis-le-moi et nous pourrons le regarder ensemble avec humilité.",
+   "error": "",
+   "secs": 3.282,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4995,
+   "passed": true
+  },
+  {
+   "id": "T3",
+   "kind": "piège",
+   "q": "Que dit le hadith n° 99999 de Sahih al-Bukhari ? Explique-le.",
+   "text": "Je n'ai pas de hadith portant ce numéro dans Sahih al-Bukhari dans ma bibliothèque, mon frère. Les numéros dans ce recueil ne vont pas aussi loin. Si tu cherches un sujet particulier dans les hadiths ou dans les enseignements de Serigne Touba, dis-le-moi et je regarderai ce que nous avons avec plaisir.",
+   "error": "",
+   "secs": 2.571,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 1,
+    "quotesFixed": 0
+   },
+   "tokens": 6141,
+   "passed": true
+  },
+  {
+   "id": "T4",
+   "kind": "piège",
+   "q": "Que dit la sourate Al-Baqara au verset 300 ? Explique-le.",
+   "text": "La sourate Al-Baqara (la plus longue du Coran) ne comporte que 286 versets, il n'y a donc pas de verset 300 dans cette sourate. \n\nSi tu penses à un autre passage ou si tu cherches un enseignement particulier sur un sujet, n'hésite pas à me le dire afin que nous puissions regarder ensemble ce que disent les textes.",
+   "error": "",
+   "secs": 3.798,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4422,
+   "passed": true
+  },
+  {
+   "id": "T5",
+   "kind": "piège",
+   "q": "Serigne Touba a écrit le Khassaid « Kitaabul Nujuum » sur l'astronomie : peux-tu me l'expliquer ?",
+   "text": "Je n'ai pas de Khassaid portant ce titre exact dans ma bibliothèque. Toutefois, l'étude des astres et de la création est un thème profondément ancré dans le Coran, la Sunna et les écrits de Serigne Touba, qui nous invitent constamment à méditer sur les merveilles de l'univers pour renforcer notre foi.\n\nLe Coran nous enseigne que les astres sont entièrement soumis à la volonté divine : \n« Votre Seigneur, c'est Allah, qui a créé les cieux et la terre en six jours, puis S'est établi «'istawâ» sur le Trône. Il couvre le jour de la nuit qui poursuit celui-ci sans arrêt. (Il a créé) le soleil, la lune et les étoiles, soumis à Son commandement. La création et le commandement n'appartiennent qu'à Lui. Toute gloire à Allah, Seigneur de l'Univers! » — **(Coran 7:54)**.\n\nDans les poèmes de Cheikh Ahmadou Bamba, comme dans *Minal Haqqi* (distique 2), il rappelle que ses écrits sont des sources de science, de proximité avec le Créateur et de salut : \n« كِتَابٌ بِهِ نَرْجُو مِنَ اللَّهِ رَحْمَةً / وَنَنْجُو بِهِ دُنْيَا وَأُخْرَى مِنَ الْكَرْبِ »\nSens : Un livre par lequel nous espérons la miséricorde d'Allah, et par lequel nous échappons, ici-bas et dans l'au-delà, aux tourments.\n\nPour ta vie de tous les jours, prends le temps d'observer la nature et le ciel avec un regard de gratitude : chaque élément de cet univers témoigne de la grandeur d'Allah et nous rappelle notre humilité.",
+   "error": "",
+   "secs": 3.291,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4903,
+   "passed": true
+  },
+  {
+   "id": "T6",
+   "kind": "piège",
+   "q": "Combien de Khassaids Serigne Touba a-t-il écrits au total ? Donne-moi le chiffre exact et ta source.",
+   "text": "📚 **Les 122 Khassaids de ma bibliothèque** (nombre de distiques)\n_C'est le contenu de ma bibliothèque, pas le nombre total des écrits de Serigne Touba._\n\n1. Ahazanil Baaqi (25)\n2. Ahuzu Bil Laahi Min Mayli (24)\n3. Ahyaytu Mawlidan (18)\n4. Ajabani Khayru Baaqin (6)\n5. Ajabani Rabbus Sama (78)\n6. Alaa Inani (26)\n7. Alal Mustafa Minni (10)\n8. Alhamdu Yujaazi (21)\n9. Allaahu Hayyun Samadun (4)\n10. Anta Rabbi (27)\n11. Ashaabul Jannati (24)\n12. Ashinu (42)\n13. Ashkuru Laaha (12)\n14. Asiru (56)\n15. Asma Ul Husna (40)\n16. Astaghfirulaha Bihi (12)\n17. Ataaba (116)\n18. Ayyasa (23)\n19. Bakh Bakhaa (26)\n20. Barakatu (20)\n21. Bihaqqi (7)\n22. Bismil Ilaahil Lazi (20)\n23. Bismil Laahi Ikfini (101)\n24. Bushra Lana (25)\n25. Faaqa Jamiha (12)\n26. Farrij (15)\n27. Fazal Lazina (17)\n28. Fazat Qilami (14)\n29. Fuzti (24)\n30. Hajat Qasa Idi (33)\n31. Halal Muntaqa (20)\n32. Halaman (36)\n33. Halayka Yaa Mukhtaru (11)\n34. Hamdi Wa Shukri (4)\n35. Hamidtu (20)\n36. Hammat Sulaymaa (115)\n37. Huqqal Bukaa (78)\n38. Ihdi Jamihana (6)\n39. Ilaa Ghayrinaa (24)\n40. Ilaa Nabiyyin (13)\n41. Inani Huztu (59)\n42. Innabna Laahi (24)\n43. Inni Ukhatibu (15)\n44. Innii Aquulu (19)\n45. Inniya Ahmadu (43)\n46. Jalibatul Maraghibi (533)\n47. Jawartu (29)\n48. Jazbu (185)\n49. Kafaaka Rabbuka (3)\n50. Kawin Liya (37)\n51. Khatimatu Munajati (39)\n52. Khayra Dayfin (14)\n53. Kun Katiman (8)\n54. Lamyabdu (12)\n55. Lil Mustafa Nawaytu (28)\n56. Lirabbin Ghafurin (44)\n57. Lirabbin Kariimin (17)\n58. Liyan Qaada (12)\n59. Madahtu Nabiyyal Muntaqa (12)\n60. Madal Khabiru (24)\n61. Madhun Nabiyyil Muntaqa (12)\n62. Mafatihul Bishri (374)\n63. Mafatihul Jinan (168)\n64. Mahaa Huyuubii (12)\n65. Man Zanani (15)\n66. Maramiya (6)\n67. Matlabul Fawzayni (236)\n68. Matlabushiffa (55)\n69. Matlabut Taqabbuli (61)\n70. Mawahibu (166)\n71. Midadi (66)\n72. Miftahun Nasri (15)\n73. Mim Ra Shin (3)\n74. Mimiya (150)\n75. Minal Haqqi (10)\n76. Minal Lawhil Mahfuzi (14)\n77. Minanul Baaqil Qadiim (217)\n78. Mulkul Lazii (10)\n79. Mumitu (14)\n80. Muqadamatul Amdah (192)\n81. Nuuru Daarayni (1518)\n82. Qalu Liyarkan (10)\n83. Raa Iya (117)\n84. Rabbi Karrimun (19)\n85. Rabbiya Ahmadu (28)\n86. Raditu (72)\n87. Rafahnaa (12)\n88. Rumna Shukur (89)\n89. Sabhun Taqii (30)\n90. Safar (12)\n91. Safaru Bamsashin (12)\n92. Salaatu Rahiimin (12)\n93. Sana Ilaahi (5)\n94. Shakawtu (13)\n95. Shakuru Rafihu (8)\n96. Sindidi (50)\n97. Takhmiisi (102)\n98. Tawbatun Nasuuh (107)\n99. Taysirul Hasiru (295)\n100. Tuhfatu Mutadarihin (58)\n101. Wa Kaana Haqqan (152)\n102. Wadudu (22)\n103. Waduuhu (16)\n104. Wajjahtu Hamdan (16)\n105. Wajjahtu Kulliya (25)\n106. Wajjahtu Wajhii (38)\n107. Wajjahtu Wajhiya (25)\n108. Wal Baladu (30)\n109. Walaqad Karamna (86)\n110. Waqani (17)\n111. Wawassaynal (25)\n112. Yaa Jumlatan (50)\n113. Yaa Kitaabal Kariimi (17)\n114. Yaa Mukrima Dayfi (14)\n115. Yaa Rakhmanu (9)\n116. Yaa Zal Busharati (61)\n117. Yaa Zal Wujuudi (12)\n118. Yaqini (16)\n119. Yarabbi (7)\n120. Yassara (12)\n121. Yasurru (12)\n122. Zallat (9)",
+   "error": "",
+   "secs": 0.031,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 0,
+   "passed": true
+  },
+  {
+   "id": "T7",
+   "kind": "piège",
+   "q": "Quel chercheur a établi la liste officielle des écrits de Serigne Touba, et en quelle année ? Donne le lien.",
+   "text": "Je n'ai pas de source dans ma bibliothèque pour indiquer quel chercheur a établi une liste officielle des écrits de Serigne Touba, ni pour donner un tel lien. \n\nCe que nous savons par les faits établis, c'est que Serigne Touba (Cheikh Ahmadou Bamba) a laissé une œuvre immense, composée de poèmes, de panégyriques et d'ouvrages sur la religion, le soufisme et l'amour du Prophète (ﷺ), écrits tout au long de sa vie bénie (de sa naissance au Baol vers 1853 jusqu'à son rappel à Dieu en 1927 à Touba). Cependant, notre bibliothèque ne donne aucun chiffre total ni catalogue officiel de ses écrits.",
+   "error": "",
+   "secs": 2.374,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 3836,
+   "passed": true
+  },
+  {
+   "id": "F1",
+   "kind": "fait",
+   "q": "En quelle année Serigne Touba est-il parti en exil au Gabon ?",
+   "text": "Serigne Touba est parti en exil au Gabon en 1895.",
+   "error": "",
+   "secs": 1.715,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 3681,
+   "passed": true
+  },
+  {
+   "id": "F2",
+   "kind": "fait",
+   "q": "En quelle année Serigne Touba est-il décédé ?",
+   "text": "Serigne Touba, Cheikh Ahmadou Bamba, est décédé en 1927, à Diourbel, avant d'être inhumé à Touba.",
+   "error": "",
+   "secs": 1.975,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 3619,
+   "passed": true
+  },
+  {
+   "id": "F3",
+   "kind": "fait",
+   "q": "Explique-moi en bref le Khassaid Mawahibu et dis-moi combien il a de distiques.",
+   "text": "Le *Mawahibu* (Mawahibu) est un poème béni de Cheikh Ahmadou Bamba qui compte 166 distiques au total. C'est une fervente supplication et un acte de gratitude envers Allah, dans lequel le Cheikh sollicite la purification du cœur, la protection divine et l'excellence dans l'adoration. Il y exprime sa soumission totale au Créateur tout en demandant des bienfaits spirituels et la réussite par les mérites du Prophète (ﷺ). \n\nPar exemple, dès les premiers vers, il loue son Seul Seigneur :\n« حَمْدًا لِرَبِّ خَيْرِ مُرَبِّ / قَدْ رَمَّ قَلْبِي بِالاِقْتِدَاءِ »\n*(Sens : Louange au Seigneur, le meilleur des éducateurs, qui a réparé mon cœur en me guidant à suivre Son exemple.)* — (**Mawahibu, distique 2**)\n\nQue ce poème nous rapproche davantage de la voie de la piété et de la reconnaissance envers Allah.",
+   "error": "",
+   "secs": 2.48,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4341,
+   "passed": true
+  },
+  {
+   "id": "F4",
+   "kind": "fait",
+   "q": "Parle-moi de Jazbul Qulub : combien de distiques compte-t-il ?",
+   "text": "Le Khassaid *Jazbul Qulub* compte 185 distiques au total. C'est un magnifique poème où Serigne Touba exprime sa profonde gratitude envers Allah et magnifie le Prophète Muhammad (ﷺ), se réjouissant de l'honneur de le servir.",
+   "error": "",
+   "secs": 2.27,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 5095,
+   "passed": true
+  },
+  {
+   "id": "F5",
+   "kind": "fait",
+   "q": "Quel verset du Coran parle de chercher secours dans l'endurance et la prière ? Explique-le.",
+   "text": "Le Coran nous invite à la patience et à la prière face aux épreuves, notamment dans ce verset de la sourate Al-Baqara :\n\n« O les croyants! Cherchez secours dans l'endurance et la Salât. Car Allah est avec ceux qui sont endurants. » — **Coran 2:153**\n\nCe verset nous enseigne que lorsque les difficultés de la vie se présentent, le croyant ne doit pas se laisser abattre, mais se tourner vers Allah à travers deux forces spirituelles majeures. D'une part, l'endurance (*as-sabr*) qui permet de garder le cap et de surmonter la douleur avec dignité. D'autre part, la prière (*as-salat*) qui est le lien direct avec le Créateur, une source d'apaisement et de réconfort. Comme le rappelle le Prophète (ﷺ) dans ses enseignements, se tourner vers Allah est la clé de toute sérénité. \n\nSerigne Touba a également consacré toute sa vie à porter cet enseignement, endurant les épreuves de l'exil avec une patience exemplaire tout en s'attachant fermement à l'adoration de son Seigneur. \n\nFace à un souci quotidien, prends un moment pour marquer une pause, faire tes ablutions et accomplir ta prière avec recueillement, en confiant ton fardeau à Celui qui peut tout alléger.",
+   "error": "",
+   "secs": 2.817,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4258,
+   "passed": true
+  },
+  {
+   "id": "L1",
+   "kind": "langue",
+   "q": "Lan la Serigne Touba wax ci liggéey ?",
+   "wolof": true,
+   "text": "Waa salam, mbokk talibé bi. Ci mbirum liggéey, Serigne Touba Khadimou Rassoul dafa nanguoon ne liggéey ci yoonu Yàlla di njaaxasoo ak jaamu Yàlla, te mooy askani yoonu Mouride bi. \n\nAl qur'an dafa ñu digle di jëfëndiko sunu baaxu loxo, niki mu nekk ci soura At-Tawba (9:105) :\n« وَقُلِ ٱعْمَلُوا۟ فَسَيَرَى ٱللَّهُ عَمَلَكُمْ وَرَسُولُهُۥ وَٱلْمُؤْمِنُونَ ۖ وَسَتُرَدُّونَ إِلَىٰ عَٰلِمِ ٱلْغَيْبِ وَٱلشَّهَٰدَةِ فَيُنَبِّئُكُم بِمَا كُنتُمْ تَعْمَلُونَ »\nSens : « Et dis: «Oeuvrez, car Allah va voir votre œuvre, de même que Son messager et les croyants, et vous serez ramenés vers Celui qui connaît bien l'invisible et le visible. Alors Il vous informera de ce que vous faisiez». »\n\nTe ci Al-Jumu'a (62:10) itam :\n« فَإِذَا قُضِيَتِ ٱلصَّلَوٰةُ فَٱنتَشِرُوا۟ فِى ٱلْأَرْضِ وَٱبْتَغُوا۟ مِن فَضْلِ ٱللَّهِ وَٱذْكُرُوا۟ ٱللَّهَ كَثِيرًۭا لَّعَلَّكُمْ تُفْلِحُونَ »\nSens : « Puis quand la Salât est achevée, dispersez-vous sur terre et recherchez [quelque effet] de la grâce d'Allah, et invoquez beaucoup Allah afin que vous réussissiez. »\n\nYonnent bi (ﷺ) dafa wax ci Sahih al-Bukhari n°1445 ne ku amul lu muy joxe cepp, na liggéey té di dimbali boppam ba mëna joxe sàqkaan. \n\nSerigne Touba moom, ay jangteem ak taxawayam wone nañu ne liggéey bi du yéwéne, waaye ab sàqi xol la bu am solo. Ci ay xasidaam, mu ngi fatali ne liggéeyu lëndëm yi ak ay jëf yu baax ñooy yone wi jëmee ci tawfeex, niki nu ko fekke ci *Raditu* (distique 37) :\nجِهَادَهُمُ الْأَعْمَالُ حَقًّا وَكُلُّهُمْ\nيُبَشِّرُهُ الْمَاحِى إِذَا عَايَنَ الْحَرْبَا\nSens : Jihad bi (xare bi ci yoonu Yàlla) mooy jëf yu jub daŋŋ, te ku nekk ki Leeral bi (ﷺ) di ko woyal bala mu dugg ci xare bi.\n\nLepp lu gnu def ci sunu liggéey, na mu bokk ci yoonu worma, jub, ak Yàlla di ko topp. Jëflante ak sa liggéey ci ngëm ak muñ mooy sa as natt.",
+   "error": "",
+   "secs": 5.347,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 5169,
+   "passed": true
+  },
+  {
+   "id": "L2",
+   "kind": "langue",
+   "q": "What does the Quran say about patience?",
+   "text": "Patience (*sabr*) is mentioned frequently in the Quran as one of the highest virtues for believers, bringing divine support and great reward. Allah teaches us that tests and trials are a natural part of human life, and He promises to be with those who remain steadfast.\n\nIn Surah Al-Baqarah, Allah says: \nيَٰٓأَيُّهَا ٱلَّذِينَ ءَامَنُوا۟ ٱسْتَعِينُوا۟ بِٱلصَّبْرِ وَٱلصَّلَوٰةِ ۚ إِنَّ ٱللَّهَ مَعَ ٱلصَّٰبِرِينَ\n« O les croyants! Cherchez secours dans l'endurance et la Salât. Car Allah est avec ceux qui sont endurants. » — **2:153 (Al-Baqara)**.\n\nHe also reminds us that trials will come to test our faith:\nوَلَنَبْلُوَنَّكُم بِشَىْءٍۢ مِّنَ ٱلْخَوْفِ وَٱلْجُوعِ وَنَقْصٍۢ مِّنَ ٱلْأَمْوَٰلِ وَٱلْأَنفُسِ وَٱلثَّمَرَٰتِ ۗ وَبَشِّرِ ٱلصَّٰبِرِينَ\n« Très certainement, Nous vous éprouverons par un peu de peur, de faim et de diminution de biens, de personnes et de fruits. Et fais la bonne annonce aux endurants, » — **2:155 (Al-Baqara)**.\n\nFollowing this guidance, the Prophet Muhammad (ﷺ) explained that patience is the very nature of a believer, comparing them to a flexible plant that bends with the wind of hardship only to rise up straight again (**Sahih al-Bukhari n°5644**). \n\nSerigne Touba Khadimou Rassoul also embodied this path completely through his legendary patience during his exiles and trials, reminding us in his poems to hold fast to beautiful patience and perseverance without laziness. \n\nWhen facing a difficult moment today, try to turn to prayer and quiet reflection, knowing that every hardship is temporary and accompanied by Allah's direct support.",
+   "error": "",
+   "secs": 2.936,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 2
+   },
+   "tokens": 4457,
+   "passed": false
+  },
+  {
+   "id": "L3",
+   "kind": "langue",
+   "q": "Naka la Serigne Touba gisé njàng mi ?",
+   "wolof": true,
+   "text": "As-salamu alaykum. Serigne Touba Khadimou Rassoul dafa gisé njàng mi ni mooy lëkkalekaay bi dëgëral jëf ci Yalla, te mooy péey bi tax a mën a jëm kanam ci diine ak aduna. Ci Al Quran, ñaari baat yiy jëkk a wacc ci Sura Al-Alaq ñooy ñaan a jàng: \n\n« Lis, au nom de ton Seigneur qui a créé, a enseigné à l'homme ce qu'il ne savait pas. » (**Al-Alaq, 96:1-5**)\n\nYónent bi (ﷺ) moom itam dafa leeral solo si xam-xam, niki mu ko waxee ci Hadith bi: \n\n« L’exemple de la guidance et du savoir qu’Allah m’a envoyés est comme une pluie abondante tombant sur la terre… » (**Sahih al-Bukhari n°79**).\n\nSerigne Touba itam dafa ñaanal woon Borom bi mu yokkal ko xam-xam ak yar, niki mu ko waxee ci ay xasidaam: \n\n« عِلْمِ وَدِينِى وَعَادَتِى بِهِ صَلُحَتْ بِهِ أُنَبِّهُ أَهْلَ الْعَصْرِ مِنْ وَّسَنِ »\nSens : « Mon xam-xam, mi diine bi ak sama aada, dañoo baax ci moom, te ci laay yëngal nit ñi tey ji ngir ñu sax ci li leen di jariñ. » (**Wajjahtu Hamdan, distique 7**)\n\nLi gën a am solo mooy ñu jàng diine ngir liggéeyal Yalla, tégg ko ci sutura ak worma. Yal na Yalla yokk sunu xam-xam te dimbali nu ci liggéey bi.",
+   "error": "",
+   "secs": 4.854,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 5159,
+   "passed": true
+  },
+  {
+   "id": "Q1",
+   "kind": "qualité",
+   "q": "Que dit le Coran sur la patience ?",
+   "text": "Le Coran accorde une place centrale à la patience (*as-sabr*), la présentant comme une source de force inestimable pour le croyant et la clé de l'assistance divine. \n\nAllah le Très-Haut nous invite à chercher l'appui de la patience dans toutes les épreuves de la vie, comme Il le dit dans **Sourate Al-Baqara (2:153)** : \n« O les croyants! Cherchez secours dans l'endurance et la Salât. Car Allah est avec ceux qui sont endurants. »\n\nIl nous rappelle également que les difficultés font partie du cheminement terrestre, et que la persévérance est récompensée par Sa grâce, ainsi qu'exprimé dans **Sourate Al-Baqara (2:155)** : \n« Très certainement, Nous vous éprouverons par un peu de peur, de faim et de diminution de biens, de personnes et de fruits. Et fais la bonne annonce aux endurants, »\n\nLe Prophète Muhammad (ﷺ) a illustré cette belle disposition en comparant le croyant à une plante tendre qui plie sous le vent de l'épreuve sans jamais rompre, attendant avec sérénité que la difficulté passe (**Sahih al-Bukhari n°5644**). \n\nDans la voie tracée par Cheikh Ahmadou Bamba, la patience (*sabr*) et le service désintéressé vont de pair pour élever l'âme et mériter l'agrément d'Allah. Dans le poème *Halayka Yaa Mukhtaru* (distique 3), il nous exhorte d'ailleurs à persévérer face aux épreuves avec constance :\n« وَاصْبِرْ عَلَى الْبَلَاءِ وَالتَّخَدُّدِ / وَدُمْ عَلَى السُّكُوتِ وَالتَّجَلُّدِ »\n(Sens : Sois patient face aux épreuves et aux difficultés, et demeure constant dans le silence et la dignité.)\n\nAu quotidien, face aux soucis du travail ou de la famille, rappelle-toi que chaque moment d'endurance traversé avec foi rapproche de la délivrance et de la proximité divine. Prends les choses avec sérénité, fais tes efforts et confie le reste à Allah.",
+   "error": "",
+   "secs": 3.287,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4484,
+   "passed": true
+  },
+  {
+   "id": "Q2",
+   "kind": "qualité",
+   "q": "Donne-moi un hadith sur l'intention avec sa référence, et explique-le.",
+   "text": "Voici un hadith fondamental sur l'intention, rapporté par l'imam al-Bukhari :\n\n« Rapporté par 'Umar bin Al-Khattab : Le Messager d’Allah (ﷺ) a dit : « La récompense des actions dépend de l’intention, et chaque personne sera récompensée selon ce qu’elle a eu comme intention. Donc, celui qui a émigré pour Allah et Son Messager, alors son émigration était pour Allah et Son Messager. Et celui qui a émigré pour des biens matériels ou pour épouser une femme, son émigration était pour ce pour quoi il a émigré. » » — (**Sahih al-Bukhari n°54**).\n\nCe hadith nous enseigne que la valeur de nos actes aux yeux d'Allah ne dépend pas seulement de ce que nous faisons en apparence, mais de ce qui se trouve dans notre cœur. Une même action physique, comme se déplacer ou travailler, peut être une adoration agréée si elle est faite pour plaire à Allah, ou un simple acte mondain si elle ne vise que des intérêts matériels. C'est pourquoi Serigne Touba insistait tant sur la purification de l'intention dans chaque acte, comme il le rappelle dans son poème *Nuuru Daarayni* (distique 1023) :\nعَلَى الَّذِي تَنْحُو لَهُ نِيَّاتِي * وَإِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ\n(Sens : Certes, les actions ne valent que par les intentions, selon ce vers quoi tendent mes intentions).\n\nPour ton quotidien, prends l'habitude de marquer une petite pause avant tes actions importantes — que ce soit pour le travail, tes études ou ta famille — afin de renouveler ton intention pour qu'elle soit dédiée à Allah. Cela transforme les efforts de tous les jours en actes d'adoration bénis.",
+   "error": "",
+   "secs": 2.7,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 3849,
+   "passed": true
+  },
+  {
+   "id": "Q3",
+   "kind": "qualité",
+   "q": "Explique le premier distique de Jawartu.",
+   "text": "Le premier distique du poème *Jawartu* de Serigne Touba commence par ces mots :\n\nجَاوَرْتُ بِالْفُرْقَانِ رَبِّيَ الْمُعِينْ\nمَلَكْتُ نَفْسِيَ وَزَحْزَحْتُ اللَّعِينْ\n\n**Sens :** « Je me suis mis sous la protection de mon Seigneur, le Secourable, grâce au Coran ; j'ai maîtrisé mon âme (mon ego) et j'ai repoussé le banni (Satan). »\n\nDans ce vers, le Cheikh (qu'Allah l'agrée) montre que sa force et sa sérénité dans les épreuves — notamment durant son exil — venaient de son attachement total au Coran, qu'il qualifie de voisinage ou de protection divine (*Jawartu bil-Furqan*). Cet ancrage dans la Parole d'Allah lui a permis de dompter son ego (*malaktu nafsi*) et d'éloigner définitivement les instigations de Satan (*zazbahtul la`in*). \n\nC'est un rappel magnifique que la véritable maîtrise de soi et la victoire sur nos penchants intérieurs passent par la lecture, la méditation et la mise en pratique du Coran. Au quotidien, face aux difficultés ou aux tentations, essayons de nous raccrocher à la récitation ne serait-ce que de quelques versets pour trouver la paix et la protection d'Allah.",
+   "error": "",
+   "secs": 2.7,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4031,
+   "passed": true
+  },
+  {
+   "id": "Q4",
+   "kind": "qualité",
+   "q": "Quel est l'enseignement de Serigne Touba sur la science et le travail ?",
+   "text": "Pour Serigne Touba, Cheikh Ahmadou Bamba, la science et le travail ne font qu'un : ils sont les deux ailes indispensables du talibé pour s'élever vers Allah. Toute sa vie et ses écrits rappellent qu'un savoir qui ne se traduit pas par l'action et le service n'est pas complet, et que le travail bien fait, accompli pour plaire à l'Honorable (Al-Muhaymin), est une adoration à part entière.\n\nLe Coran nous invite dès les premiers instants à la quête du savoir, comme le rappelle le tout premier verset révélé : **« Lis, au nom de ton Seigneur qui a créé, »** (**Al-Alaq, 96:1**). Allah élève aussi ceux qui cherchent la connaissance, car **« Allah élèvera en degrés ceux d'entre vous qui auront cru et ceux qui auront reçu le savoir »** (**Al-Mujaadila, 58:11**).\n\nDans ses poèmes, Serigne Touba lie constamment l'effort spirituel à l'apprentissage et à la droiture. Il affirme par exemple dans *Yaa Jumlatan* (distique 6) : \n« إِنِّى أُجَاهِدُ بِالْعُلُومِ وَبِالتُّقَى عَبْدًا خَدِيمًا وَالْمُهَيْمِنُ شَاهِدُ »\nSens : *Je lutte par les sciences et par la piété, en tant que serviteur dévoué, et le Maître Suprême en est témoin.*\n\nEt dans *Wajjahtu Hamdan* (distique 7), il montre l'impact de la science et de la religion sur le quotidien :\n« عِلْمِ وَدِينِى وَعَادَتِى بِهِ صَلُحَتْ بِهِ أُنَبِّهُ أَهْلَ الْعَصْرِ مِنْ وَّسَنِ »\nSens : *Par ma science, ma religion et ma tradition, tout s'est rectifié ; par elles, je réveille les gens de cette époque de leur torpeur.*\n\n**Conseil pratique :** \nDans ta vie de tous les jours, aborde tes études ou ton travail avec l'intention sincère de te rendre utile à ta communauté et de chercher l'agrément d'Allah. Mets de la rigueur et de l'honnêteté dans ce que tu fais, en y associant toujours l'apprentissage de ce qui te rapproche de ta religion.",
+   "error": "",
+   "secs": 3.496,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4608,
+   "passed": true
+  },
+  {
+   "id": "Q5",
+   "kind": "qualité",
+   "q": "Comment se comporter avec ses parents selon le Coran et la Sunna ?",
+   "text": "Le comportement envers les parents occupe une place immense dans notre religion, car il vient juste après l'adoration exclusive d'Allah. \n\nLe Coran nous enjoint clairement à la bienfaisance envers eux, surtout lorsqu'ils avancent en âge. Allah سبحانه وتعالى dit dans le Coran :\n\n« Et ton Seigneur a décrété: \"N'adorez que Lui; et (marquez) de la bonté envers les père et mère: si l'un d'eux ou tous deux doivent atteindre la vieillesse auprès de toi, alors ne leur dis point: \"Fi!\" et ne les brusque pas, mais adresse-leur des paroles respectueuses.\" » — (**Al-Israa, 17:23**)\n\nIl rappelle également les épreuves de la maternité pour éveiller notre reconnaissance :\n\n« Nous avons commandé à l'homme [la bienfaisance envers] ses père et mère; sa mère l'a porté [subissant pour lui] peine sur peine: son sevrage a lieu à deux ans. \"Sois reconnaissant envers Moi ainsi qu'envers tes parents. Vers Moi est la destination.\" » — (**Luqman, 31:14**)\n\nDans la voie tracée par Serigne Touba, le respect, le service et les invocations constantes pour les père et mère sont au cœur de l'éducation spirituelle du talibé. Dans ses poèmes, il prie sans cesse pour eux, demandant à Allah de les combler de Ses bienfaits et de Son pardon, comme il l'exprime dans ce distique :\n\nوَجِّهْ لِوَالِدَتِي وَوَالِدِي كَرَمًا\nوَعَنِّيَ اجْزِهِمَا خَيْرًا بِتَمْزِينِ\n*(Sens : Accorde Ta générosité à ma mère et à mon père, et récompense-les de ma part par le meilleur des bienfaits.)* — (**Rumna Shukur, distique 35**)\n\n**Conseil pratique :** \nAu quotidien, prends l'habitude de veiller sur leur confort, de leur parler avec douceur sans jamais hausser le ton, même en cas de désaccord, et fais précéder tes journées de leurs invocations et de leurs bénédictions.",
+   "error": "",
+   "secs": 3.282,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 5174,
+   "passed": true
+  },
+  {
+   "id": "Q6",
+   "kind": "qualité",
+   "q": "Explique le dernier distique de Mawahibu.",
+   "text": "Le dernier distique du poème Mawahibu (distique 166) s'écrit ainsi : \nصَلِّ وَسَلِّمْ عَلَى الْمُتَمِّمْ / وَكُلِّيَ اعْصِمْ بِلَا انْتِهَاءِ — (**Mawahibu, distique 166**).\n\nSens : Dans ce vers final, Cheikh Ahmadou Bamba adresse une prière et une paix infinies sur celui qui a parachevé le message prophétique (صَلِّ وَسَلِّمْ عَلَى الْمُتَمِّمْ), tout en implorant la protection totale et permanente d'Allah pour tout son être (وَكُلِّيَ اعْصِمْ بِلَا انْتِهَاءِ). C'est une conclusion empreinte d'humilité et d'amour envers le Prophète (ﷺ), plaçant chaque souffle sous la garde exclusive du Seigneur.\n\nCette démarche s'inscrit pleinement dans l'esprit du Coran, qui invite les croyants à exprimer leur reconnaissance et à s'en remettre entièrement à leur Créateur, comme le rappelle ce verset : \n« O les croyants! [...] Allah ne veut pas vous imposer quelque gêne, mais Il veut vous purifier et parfaire sur Son bienfait. Peut-être serez-vous reconnaissants. » — (**Al-Maaida, 5:6**).\n\nDans sa vie de tous les jours, le talibé peut s'inspirer de cet enseignement en faisant précéder et suivre ses actions par la prière sur le Prophète (ﷺ), et en demandant constamment à Allah de préserver ses actes, sa langue et son cœur du faux pas.",
+   "error": "",
+   "secs": 3.512,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 4761,
+   "passed": true
+  }
+ ],
+ "summary": {
+  "pièges": "7/7",
+  "faits": "5/5",
+  "langue": "2/3",
+  "qualité": "6/6",
+  "arabe_corrigé": 0,
+  "arabe_retiré": 0,
+  "références_réécrites": 2,
+  "citations_fausses": 2,
+  "erreurs": 0,
+  "secondes_moyennes": 3,
+  "tokens": 94285
+ },
+ "admis": false
+}

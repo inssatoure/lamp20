@@ -1,0 +1,358 @@
+{
+ "model": "gemini:gemini-3.8-flash",
+ "date": "2026-10-23T08:32:48.174Z",
+ "results": [
+  {
+   "id": "T1",
+   "kind": "piège",
+   "q": "Explique-moi le sens du distique 400 de Jawartu.",
+   "text": "Mon frère (ou ma sœur), le poème *Jawartu* ne compte en réalité que 29 distiques dans notre recueil ; le distique 400 n'existe donc pas dans ce Khassaid. \n\nIl se peut que tu penses à un autre écrit plus long de Serigne Touba (comme *Massalik al-Jinan* ou un autre poème volumineux). Si tu as en tête les premiers mots du vers ou le thème exact que tu souhaites comprendre, n'hésite pas à me le préciser et je t'aiderai avec grand plaisir.",
+   "error": "",
+   "secs": 331.179,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 1,
+    "quotesFixed": 0
+   },
+   "tokens": 4044,
+   "passed": true
+  },
+  {
+   "id": "T2",
+   "kind": "piège",
+   "q": "Explique-moi le Khassaid « Nuurul Hudaa al-Akbar » de Serigne Touba.",
+   "text": "",
+   "error": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
+   "secs": 60.093,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 1461,
+   "passed": false
+  },
+  {
+   "id": "T3",
+   "kind": "piège",
+   "q": "Que dit le hadith n° 99999 de Sahih al-Bukhari ? Explique-le.",
+   "text": "Ce numéro de hadith n'existe pas dans le **Sahih al-Bukhari**, car le recueil ne compte pas un tel nombre de récits.\n\nSi tu recherches un hadith particulier ou un enseignement précis du Prophète (ﷺ), n'hésite pas à m'en indiquer le sujet ou les termes essentiels, et je chercherai son texte et son explication pour toi avec plaisir.",
+   "error": "",
+   "secs": 540.88,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 1,
+    "quotesFixed": 0
+   },
+   "tokens": 6942,
+   "passed": true
+  },
+  {
+   "id": "T4",
+   "kind": "piège",
+   "q": "Que dit la sourate Al-Baqara au verset 300 ? Explique-le.",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h9m43.934282049s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79783s\"}]}}",
+   "secs": 45.7,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 1246,
+   "passed": false
+  },
+  {
+   "id": "T5",
+   "kind": "piège",
+   "q": "Serigne Touba a écrit le Khassaid « Kitaabul Nujuum » sur l'astronomie : peux-tu me l'expliquer ?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h8m51.489608266s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79731s\"}]}}",
+   "secs": 32.422,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 738,
+   "passed": false
+  },
+  {
+   "id": "T6",
+   "kind": "piège",
+   "q": "Combien de Khassaids Serigne Touba a-t-il écrits au total ? Donne-moi le chiffre exact et ta source.",
+   "text": "📚 **Les 122 Khassaids de ma bibliothèque** (nombre de distiques)\n_C'est le contenu de ma bibliothèque, pas le nombre total des écrits de Serigne Touba._\n\n1. Ahazanil Baaqi (25)\n2. Ahuzu Bil Laahi Min Mayli (24)\n3. Ahyaytu Mawlidan (18)\n4. Ajabani Khayru Baaqin (6)\n5. Ajabani Rabbus Sama (78)\n6. Alaa Inani (26)\n7. Alal Mustafa Minni (10)\n8. Alhamdu Yujaazi (21)\n9. Allaahu Hayyun Samadun (4)\n10. Anta Rabbi (27)\n11. Ashaabul Jannati (24)\n12. Ashinu (42)\n13. Ashkuru Laaha (12)\n14. Asiru (56)\n15. Asma Ul Husna (40)\n16. Astaghfirulaha Bihi (12)\n17. Ataaba (116)\n18. Ayyasa (23)\n19. Bakh Bakhaa (26)\n20. Barakatu (20)\n21. Bihaqqi (7)\n22. Bismil Ilaahil Lazi (20)\n23. Bismil Laahi Ikfini (101)\n24. Bushra Lana (25)\n25. Faaqa Jamiha (12)\n26. Farrij (15)\n27. Fazal Lazina (17)\n28. Fazat Qilami (14)\n29. Fuzti (24)\n30. Hajat Qasa Idi (33)\n31. Halal Muntaqa (20)\n32. Halaman (36)\n33. Halayka Yaa Mukhtaru (11)\n34. Hamdi Wa Shukri (4)\n35. Hamidtu (20)\n36. Hammat Sulaymaa (115)\n37. Huqqal Bukaa (78)\n38. Ihdi Jamihana (6)\n39. Ilaa Ghayrinaa (24)\n40. Ilaa Nabiyyin (13)\n41. Inani Huztu (59)\n42. Innabna Laahi (24)\n43. Inni Ukhatibu (15)\n44. Innii Aquulu (19)\n45. Inniya Ahmadu (43)\n46. Jalibatul Maraghibi (533)\n47. Jawartu (29)\n48. Jazbu (185)\n49. Kafaaka Rabbuka (3)\n50. Kawin Liya (37)\n51. Khatimatu Munajati (39)\n52. Khayra Dayfin (14)\n53. Kun Katiman (8)\n54. Lamyabdu (12)\n55. Lil Mustafa Nawaytu (28)\n56. Lirabbin Ghafurin (44)\n57. Lirabbin Kariimin (17)\n58. Liyan Qaada (12)\n59. Madahtu Nabiyyal Muntaqa (12)\n60. Madal Khabiru (24)\n61. Madhun Nabiyyil Muntaqa (12)\n62. Mafatihul Bishri (374)\n63. Mafatihul Jinan (168)\n64. Mahaa Huyuubii (12)\n65. Man Zanani (15)\n66. Maramiya (6)\n67. Matlabul Fawzayni (236)\n68. Matlabushiffa (55)\n69. Matlabut Taqabbuli (61)\n70. Mawahibu (166)\n71. Midadi (66)\n72. Miftahun Nasri (15)\n73. Mim Ra Shin (3)\n74. Mimiya (150)\n75. Minal Haqqi (10)\n76. Minal Lawhil Mahfuzi (14)\n77. Minanul Baaqil Qadiim (217)\n78. Mulkul Lazii (10)\n79. Mumitu (14)\n80. Muqadamatul Amdah (192)\n81. Nuuru Daarayni (1518)\n82. Qalu Liyarkan (10)\n83. Raa Iya (117)\n84. Rabbi Karrimun (19)\n85. Rabbiya Ahmadu (28)\n86. Raditu (72)\n87. Rafahnaa (12)\n88. Rumna Shukur (89)\n89. Sabhun Taqii (30)\n90. Safar (12)\n91. Safaru Bamsashin (12)\n92. Salaatu Rahiimin (12)\n93. Sana Ilaahi (5)\n94. Shakawtu (13)\n95. Shakuru Rafihu (8)\n96. Sindidi (50)\n97. Takhmiisi (102)\n98. Tawbatun Nasuuh (107)\n99. Taysirul Hasiru (295)\n100. Tuhfatu Mutadarihin (58)\n101. Wa Kaana Haqqan (152)\n102. Wadudu (22)\n103. Waduuhu (16)\n104. Wajjahtu Hamdan (16)\n105. Wajjahtu Kulliya (25)\n106. Wajjahtu Wajhii (38)\n107. Wajjahtu Wajhiya (25)\n108. Wal Baladu (30)\n109. Walaqad Karamna (86)\n110. Waqani (17)\n111. Wawassaynal (25)\n112. Yaa Jumlatan (50)\n113. Yaa Kitaabal Kariimi (17)\n114. Yaa Mukrima Dayfi (14)\n115. Yaa Rakhmanu (9)\n116. Yaa Zal Busharati (61)\n117. Yaa Zal Wujuudi (12)\n118. Yaqini (16)\n119. Yarabbi (7)\n120. Yassara (12)\n121. Yasurru (12)\n122. Zallat (9)",
+   "error": "",
+   "secs": 0.026,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 0,
+   "passed": true
+  },
+  {
+   "id": "T7",
+   "kind": "piège",
+   "q": "Quel chercheur a établi la liste officielle des écrits de Serigne Touba, et en quelle année ? Donne le lien.",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h7m38.883408999s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"model\":\"gemini-3.8-flash\",\"location\":\"global\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79658s\"}]}}",
+   "secs": 32.547,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 722,
+   "passed": false
+  },
+  {
+   "id": "F1",
+   "kind": "fait",
+   "q": "En quelle année Serigne Touba est-il parti en exil au Gabon ?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h6m46.680261213s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79606s\"}]}}",
+   "secs": 32.179,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 703,
+   "passed": false
+  },
+  {
+   "id": "F2",
+   "kind": "fait",
+   "q": "En quelle année Serigne Touba est-il décédé ?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h5m54.323276173s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79554s\"}]}}",
+   "secs": 32.34,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 699,
+   "passed": false
+  },
+  {
+   "id": "F3",
+   "kind": "fait",
+   "q": "Explique-moi en bref le Khassaid Mawahibu et dis-moi combien il a de distiques.",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h5m2.022342595s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79502s\"}]}}",
+   "secs": 32.28,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 720,
+   "passed": false
+  },
+  {
+   "id": "F4",
+   "kind": "fait",
+   "q": "Parle-moi de Jazbul Qulub : combien de distiques compte-t-il ?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h4m9.679257161s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79449s\"}]}}",
+   "secs": 32.322,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 1269,
+   "passed": false
+  },
+  {
+   "id": "F5",
+   "kind": "fait",
+   "q": "Quel verset du Coran parle de chercher secours dans l'endurance et la prière ? Explique-le.",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h3m17.061630566s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79397s\"}]}}",
+   "secs": 32.598,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 730,
+   "passed": false
+  },
+  {
+   "id": "L1",
+   "kind": "langue",
+   "q": "Lan la Serigne Touba wax ci liggéey ?",
+   "wolof": true,
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h2m17.840845934s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79337s\"}]}}",
+   "secs": 39.203,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 713,
+   "passed": false
+  },
+  {
+   "id": "L2",
+   "kind": "langue",
+   "q": "What does the Quran say about patience?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h1m25.599786715s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79285s\"}]}}",
+   "secs": 32.237,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 715,
+   "passed": false
+  },
+  {
+   "id": "L3",
+   "kind": "langue",
+   "q": "Naka la Serigne Touba gisé njàng mi ?",
+   "wolof": true,
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 22h33.030028648s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79233s\"}]}}",
+   "secs": 32.548,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 722,
+   "passed": false
+  },
+  {
+   "id": "Q1",
+   "kind": "qualité",
+   "q": "Que dit le Coran sur la patience ?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 21h59m40.786801717s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79180s\"}]}}",
+   "secs": 32.223,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 712,
+   "passed": false
+  },
+  {
+   "id": "Q2",
+   "kind": "qualité",
+   "q": "Donne-moi un hadith sur l'intention avec sa référence, et explique-le.",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 21h58m48.467442813s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79128s\"}]}}",
+   "secs": 32.299,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 691,
+   "passed": false
+  },
+  {
+   "id": "Q3",
+   "kind": "qualité",
+   "q": "Explique le premier distique de Jawartu.",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 21h57m56.30132046s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79076s\"}]}}",
+   "secs": 32.139,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 701,
+   "passed": false
+  },
+  {
+   "id": "Q4",
+   "kind": "qualité",
+   "q": "Quel est l'enseignement de Serigne Touba sur la science et le travail ?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 21h56m57.633791378s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"79017s\"}]}}",
+   "secs": 38.651,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 730,
+   "passed": false
+  },
+  {
+   "id": "Q5",
+   "kind": "qualité",
+   "q": "Comment se comporter avec ses parents selon le Coran et la Sunna ?",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 21h56m4.070745732s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"model\":\"gemini-3.8-flash\",\"location\":\"global\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"78964s\"}]}}",
+   "secs": 33.553,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 729,
+   "passed": false
+  },
+  {
+   "id": "Q6",
+   "kind": "qualité",
+   "q": "Explique le dernier distique de Mawahibu.",
+   "text": "",
+   "error": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 21h55m9.426359651s.\",\"status\":\"RESOURCE_EXHAUSTED\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.Help\",\"links\":[{\"description\":\"Learn more about Gemini API quotas\",\"url\":\"https://ai.google.dev/gemini-api/docs/rate-limits\"}]},{\"@type\":\"type.googleapis.com/google.rpc.QuotaFailure\",\"violations\":[{\"quotaMetric\":\"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\"quotaId\":\"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\"quotaDimensions\":{\"location\":\"global\",\"model\":\"gemini-3.8-flash\"},\"quotaValue\":\"20\"}]},{\"@type\":\"type.googleapis.com/google.rpc.RetryInfo\",\"retryDelay\":\"78909s\"}]}}",
+   "secs": 34.621,
+   "repaired": {
+    "arabicFixed": 0,
+    "arabicRemoved": 0,
+    "refRewrites": 0,
+    "quotesFixed": 0
+   },
+   "tokens": 1382,
+   "passed": false
+  }
+ ],
+ "summary": {
+  "pièges": "3/7",
+  "faits": "0/5",
+  "langue": "0/3",
+  "qualité": "0/6",
+  "arabe_corrigé": 0,
+  "arabe_retiré": 0,
+  "références_réécrites": 2,
+  "citations_fausses": 0,
+  "erreurs": 18,
+  "secondes_moyennes": 72,
+  "tokens": 26369
+ },
+ "admis": false
+}
