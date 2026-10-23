@@ -36,7 +36,7 @@ const known = new Map();
 for (const f of [OUT, `${OUT}.tmp`]) {
   if (!fs.existsSync(f)) continue;
   for await (const line of readline.createInterface({ input: fs.createReadStream(f) })) {
-    try { const x = JSON.parse(line); if (x.c && x.e) known.set(body(x.c), x.e); } catch { /* partial last line */ }
+    try { const x = JSON.parse(line); if (x.c && x.e?.length) known.set(body(x.c), x.e); } catch { /* partial last line */ }   // empty vectors are recomputed
   }
 }
 const todo = items.filter((x) => !known.has(body(x.c)));
@@ -63,6 +63,8 @@ for (let i = 0; i < todo.length; i += BATCH) {
   }
   process.stdout.write(`\r${Math.min(i + BATCH, todo.length)}/${todo.length}`);
 }
+const missing = items.filter((x) => !known.get(body(x.c))?.length);
+if (missing.length) { console.error(`\n${missing.length} distiques sans vecteur — index non remplacé`); process.exit(1); }
 for (const x of items) out.write(JSON.stringify({ ...x, e: known.get(body(x.c)) }) + '\n');
 await new Promise((r) => out.end(r));
 await new Promise((r) => part.end(r));
