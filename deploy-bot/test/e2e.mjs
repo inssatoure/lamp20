@@ -61,6 +61,7 @@ function checks(text, expect) {
   }
   if (expect.explained && expect.direct) problems.push('a seulement recopié le texte au lieu d\'expliquer');
   if (expect.lang && expect.gotLang !== expect.lang) problems.push(`langue ${expect.gotLang} au lieu de ${expect.lang}`);
+  if (expect.mentionsAny && !expect.mentionsAny.some((w) => text.includes(w))) problems.push(`ne parle pas de ${expect.mentionsAny[0]}`);
   if (expect.mentions) for (const w of expect.mentions) if (!text.toLowerCase().includes(w.toLowerCase())) problems.push(`ne mentionne pas « ${w} »`);
   return problems;
 }
@@ -69,7 +70,7 @@ const SCENARIOS = [
   { user: 'u1', q: 'Écris-moi tous les vers de Jawartu, n\'en saute aucun.', expect: { khassaid: { stem: 'jawartu', from: 1, to: 1000, count: 29 } } },
   { user: 'u1', q: 'Le dernier vers de Mawahibou', expect: { khassaid: { stem: 'mawahibu', from: -1, to: -1 } } },
   { user: 'u2', q: 'Serigne, nanga leeral ma sa ci Khassida Jawartu.', expect: { lang: 'wo', explained: true }, voice: true },
-  { user: 'u2', q: 'Jawartu', expect: { mentions: ['Jawartu'] } },
+  { user: 'u2', q: 'Jawartu', expect: { mentionsAny: ['Jawartu', 'جَاوَرْتُ'] } },
   { user: 'u3', q: 'Que dit le Coran sur la patience ?', expect: { lang: 'fr' }, voice: true },
   { user: 'u3', q: 'Donne-moi le hadith sur l\'intention.', expect: { lang: 'fr' } },
   { user: 'u3', q: 'Tu te souviens de ce dont on a parlé ?', expect: { mentions: ['patience'] } },

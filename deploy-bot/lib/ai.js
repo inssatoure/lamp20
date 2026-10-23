@@ -48,6 +48,7 @@ const isBusy = (m) => /503|500|UNAVAILABLE|INTERNAL|overloaded|high demand|timeo
 
 // Models that hit their daily quota are skipped for 10 minutes (saves a wasted call each time)
 const exhausted = new Map();
+const overloaded = new Map();   // model -> until (Google overload is per model, not per key)
 const isExhausted = (model) => (exhausted.get(model) || 0) > Date.now();
 
 /**
@@ -69,20 +70,22 @@ export async function generate(params, chain = 'answer') {
     const text = await groqChat({ ...params, _only: LIGHT_ROUTE }).catch(() => '');
     if (text) return { text, groq: true };
   }
-  // when Google is overloaded, don't keep trying: after this budget, Groq answers
-  const deadline = params.deadline || Date.now() + (chain === 'light' ? 12_000 : 30_000);
+  // Always a time budget: when Google is overloaded the person gets an honest "busy" message (or a
+  // checked backup model) instead of waiting minutes.
+  const deadline = params.deadline || Date.now() + (chain === 'light' ? 12_000 : 45_000);
   let lastErr;
   const tries = params.preferGroq && HAS_BACKUP ? [] : models.flatMap((model) => liveKeys().map((key) => ({ model, key })));
   for (const { model, key } of tries) {                     // best model on every key first, then the next model
     const slot = `${key.n}:${model}`;
     if (isExhausted(slot) || key.deadUntil > Date.now()) continue;
-    if (Date.now() > deadline && HAS_BACKUP) { console.warn('[AI] Gemini too slow today → backup models'); break; }
+    if ((overloaded.get(model) || 0) > Date.now()) continue;  // slow/overloaded on another key: same on this one
+    if (Date.now() > deadline) { console.warn(`[AI] Gemini too slow today${HAS_BACKUP ? ' → backup models' : ''}`); break; }
     try {
       const { toolRunner, _only, preferGroq, deadline: _d, ...geminiParams } = params;
       // the Gemini SDK rewrites tool schemas in place: give it a copy so Groq still gets clean ones
       const config = geminiParams.config ? structuredClone(geminiParams.config) : undefined;
       // never wait past the budget: a slow Google call is cut and Groq answers instead
-      const wait = HAS_BACKUP ? Math.max(5_000, Math.min(timeout, deadline - Date.now())) : timeout;
+      const wait = Math.max(5_000, Math.min(timeout, deadline - Date.now()));
       const r = await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), wait, model);
       count('gemini', r.usageMetadata?.promptTokenCount, (r.usageMetadata?.candidatesTokenCount || 0) + (r.usageMetadata?.thoughtsTokenCount || 0));
       if (chain === 'answer') lastRoute = `gemini:${model}`;
@@ -95,10 +98,12 @@ export async function generate(params, chain = 'answer') {
       } else if (isQuota(msg)) {
         console.warn(`[AI] ${model} (key #${key.n}) quota exhausted → next`);
         exhausted.set(slot, Date.now() + 10 * 60_000);
-      } else if (/timeout/i.test(msg)) {
-        console.warn(`[AI] ${model} too slow → next`);
+      } else if (/timeout/i.test(msg) || isBusy(msg)) {
+        // overload is Google-side, per model: don't try the same model on the other keys for 2 minutes
+        overloaded.set(model, Date.now() + 2 * 60_000);
+        console.warn(`[AI] ${model} ${/timeout/i.test(msg) ? 'too slow' : 'busy'} → next model`);
       } else {
-        console.warn(`[AI] ${model} (key #${key.n}) ${isBusy(msg) ? 'busy' : `error ${msg.slice(0, 60)}`} → next`);
+        console.warn(`[AI] ${model} (key #${key.n}) error ${msg.slice(0, 60)} → next`);
       }
     }
   }
@@ -215,7 +220,7 @@ async function groqChat(params) {
   }
   if (!messages.some((m) => m.role === 'user')) return '';
   const json = params.config?.responseMimeType === 'application/json';
-  const tools = params.toolRunner ? toGroqTools(params.config?.tools) : [];
+  const tools = params.toolRunner && params.config?.toolConfig?.functionCallingConfig?.mode !== 'NONE' ? toGroqTools(params.config?.tools) : [];
   const temperature = params.config?.temperature ?? 0.4;
 
   for (const model of (params._only ? [params._only] : ANSWER_ROUTES).filter(hasProvider)) {

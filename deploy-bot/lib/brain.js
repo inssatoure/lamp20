@@ -413,12 +413,17 @@ export async function answer(text, history = [], person = {}) {
   const config = { systemInstruction, temperature: 0.3, tools: TOOLS };
 
   let reply = '';
+  // last round: searching is switched off (tools still declared, calls forbidden) and the model is told
+  // to answer with what it found — otherwise it may return only a search request and no text
+  const finalConfig = { systemInstruction, temperature: 0.3, tools: TOOLS, toolConfig: { functionCallingConfig: { mode: 'NONE' } } };
+  const answerNow = { role: 'user', parts: [{ text: 'Tu as assez cherché : réponds maintenant à la question avec les sources déjà trouvées, sans nouvelle recherche.' }] };
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+    if (round === MAX_TOOL_ROUNDS) contents.push(answerNow);
     const r = await generate({
-      deadline: t0 + 30_000,                                     // one Gemini budget for the whole answer (all rounds)
-      preferGroq: Date.now() - t0 > 30_000,                      // Google too slow for this answer: finish with Groq
+      deadline: t0 + 60_000,                                     // one time budget for the whole answer (all rounds)
+      preferGroq: Date.now() - t0 > 60_000,                      // Google too slow for this answer: finish with Groq
       contents,
-      config: round === MAX_TOOL_ROUNDS ? { systemInstruction, temperature: 0.3 } : config,
+      config: round === MAX_TOOL_ROUNDS ? finalConfig : config,
       toolRunner: (name, args) => runTool(name, args, refs),     // lets Groq use the library too
     }, 'answer');
     const calls = r.groq ? [] : (r.functionCalls || []);
@@ -430,8 +435,9 @@ export async function answer(text, history = [], person = {}) {
   }
   if (!reply) {                                              // a model returned nothing: ask once more, Groq if needed
     console.warn('[Brain] empty answer → one more try');
-    reply = (await generateText({ contents, config: { systemInstruction, temperature: 0.3 }, preferGroq: true }, 'answer', true))
-      || (await generateText({ contents, config: { systemInstruction, temperature: 0.3 } }, 'answer', true));
+    if (contents.at(-1) !== answerNow) contents.push(answerNow);
+    reply = (await generateText({ contents, config: finalConfig, preferGroq: true }, 'answer', true))
+      || (await generateText({ contents, config: finalConfig }, 'answer', true));
   }
   if (!reply) throw new Error('Empty answer');
 
