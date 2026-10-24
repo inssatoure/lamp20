@@ -96,3 +96,35 @@ export function toggleGuidance(id) {
 export function deleteGuidance(id) {
   write({ ...read(), guidance: guidance().filter((g) => g.id !== id) });
 }
+
+// ─── dashboard access ────────────────────────────────────────────────────────
+/** Random secret of this server (signs the magic-link cookie and the forms). Created on first use. */
+export function adminSecret() {
+  const s = read();
+  if (s.adminSecret) return s.adminSecret;
+  const secret = crypto.randomBytes(32).toString('hex');
+  write({ ...s, adminSecret: secret });
+  return secret;
+}
+/** The permanent magic link token. `renew` makes a new one: the old link stops working everywhere. */
+export function adminLinkToken(renew = false) {
+  const s = read();
+  if (s.adminLinkToken && !renew) return s.adminLinkToken;
+  const token = crypto.randomBytes(24).toString('base64url');
+  write({ ...read(), adminLinkToken: token });
+  return token;
+}
+/** Password set on the dashboard (stored as a salted hash), else the LAMP_ADMIN_PASSWORD variable. */
+export const hasAdminPassword = () => !!read().adminPassword;
+export function setAdminPassword(pw) {
+  pw = String(pw || '');
+  if (pw.length < 6 || pw.length > 200) throw new Error('Le mot de passe doit faire au moins 6 caractères.');
+  const salt = crypto.randomBytes(16).toString('hex');
+  write({ ...read(), adminPassword: { salt, hash: crypto.scryptSync(pw, salt, 32).toString('hex') } });
+}
+export function checkAdminPassword(pw, fallback) {
+  const p = read().adminPassword;
+  const a = p ? crypto.scryptSync(String(pw || ''), p.salt, 32) : Buffer.from(String(pw || ''));
+  const b = p ? Buffer.from(p.hash, 'hex') : Buffer.from(String(fallback || ''));
+  return !!(p || fallback) && a.length === b.length && crypto.timingSafeEqual(a, b);
+}

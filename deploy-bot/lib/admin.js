@@ -22,11 +22,28 @@ const date = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { timeZone: '
 const num = (n) => Number(n || 0).toLocaleString('fr-FR');
 const todayUse = (id) => (unlimited(id) ? ' · sans limite' : ` · aujourd'hui : ${usedToday(id)}/${settings.dailyLimit()} questions`);
 // a form field only this dashboard knows: a page from another site cannot make the browser change settings
-const csrf = () => crypto.createHash('sha256').update(`${ADMIN_PASSWORD}:lamp-admin-form`).digest('hex').slice(0, 32);
+const sign = (what) => crypto.createHmac('sha256', settings.adminSecret()).update(what).digest('hex');
+const csrf = () => sign('form').slice(0, 32);
+
+// ─── access: password (browser login box) or the permanent magic link (a cookie) ───
+const COOKIE = 'lamp_admin';
+const cookieValue = () => sign(`link:${settings.adminLinkToken()}`);   // a new link makes old cookies useless
+const cookieOk = (req) => (req.headers.cookie || '').split(/;\s*/).some((c) => c.startsWith(`${COOKIE}=`) && same(c.slice(COOKIE.length + 1), cookieValue()));
+const accessOn = () => !!ADMIN_PASSWORD || settings.hasAdminPassword();
+// too many wrong passwords or links from one address: blocked for 15 minutes
+const failures = new Map();   // ip -> { n, until }
+// the host's proxy adds the real address last: earlier entries could be made up by the visitor
+const ipOf = (req) => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',').pop().trim();
+const blocked = (ip) => (failures.get(ip)?.until || 0) > Date.now();
+function failed(ip) {
+  const f = failures.get(ip) || { n: 0, until: 0 };
+  f.n += 1; if (f.n >= 8) { f.until = Date.now() + 15 * 60_000; f.n = 0; console.warn(`[Admin] ${ip} blocked 15 min (wrong passwords)`); }
+  failures.set(ip, f);
+}
 const hidden = () => `<input type="hidden" name="csrf" value="${csrf()}">`;
 
 const TABS = [['/admin', 'Vue d’ensemble'], ['/admin/conversations', 'Conversations'], ['/admin/cles', 'Clés Gemini'],
-  ['/admin/comportement', 'Comportement'], ['/admin/limites', 'Limites']];
+  ['/admin/comportement', 'Comportement'], ['/admin/limites', 'Limites'], ['/admin/acces', 'Accès']];
 
 const page = (title, active, body, flash = '') => `<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>
@@ -174,6 +191,23 @@ function limitsPage() {
 <button>Enregistrer</button></form>`;
 }
 
+function accessPage(req) {
+  const link = `https://${req.headers.host}/admin/lien/${settings.adminLinkToken()}`;
+  return `<h1>Accès au tableau de bord</h1>
+<h2>Lien magique</h2>
+<div class="card"><p class="muted">Ce lien ouvre le tableau de bord sans mot de passe, sur n’importe quel appareil, et reste valable tant que tu ne le changes pas.
+Garde-le comme un mot de passe : toute personne qui l’a peut tout gérer (clés, consignes, conversations).</p>
+<p><input readonly value="${esc(link)}" style="width:100%" onclick="this.select()"></p>
+<form class="inline" method="post" action="/admin/action" onsubmit="return confirm('Créer un nouveau lien ? L’ancien lien ne marchera plus, sur tous les appareils.')">${hidden()}<input type="hidden" name="do" value="link-renew"><button class="danger">Changer le lien</button></form>
+<a href="/admin/deconnexion" style="margin-left:10px">Se déconnecter sur cet appareil</a></div>
+<h2>Mot de passe</h2>
+<form class="card" method="post" action="/admin/action">${hidden()}<input type="hidden" name="do" value="password">
+<p class="muted">Identifiant : <b>admin</b>. ${settings.hasAdminPassword() ? 'Le mot de passe actuel a été choisi ici.' : 'Le mot de passe actuel vient de la variable cPanel LAMP_ADMIN_PASSWORD. Dès que tu le changes ici, c’est celui-ci qui compte.'}</p>
+<p><input type="password" name="pw" placeholder="Nouveau mot de passe (6 caractères minimum)" autocomplete="new-password" required></p>
+<p><input type="password" name="pw2" placeholder="Le même, une deuxième fois" autocomplete="new-password" required></p>
+<button>Changer le mot de passe</button></form>`;
+}
+
 async function conversationsPage(url) {
   const q = (url.searchParams.get('q') || '').toLowerCase().trim();
   const users = (await listUsers()).filter((u) => !q || `${u.profile.name} ${u.profile.username} ${u.id}`.toLowerCase().includes(q));
@@ -219,6 +253,10 @@ async function action(f) {
     case 'g-toggle': settings.toggleGuidance(f.id); return ['/admin/comportement', 'C’est fait.'];
     case 'g-delete': settings.deleteGuidance(f.id); return ['/admin/comportement', 'Supprimé.'];
     case 'limits': settings.setLimits(f.limit, f.ids); return ['/admin/limites', 'Limites enregistrées. Elles s’appliquent tout de suite.'];
+    case 'password':
+      if (f.pw !== f.pw2) throw new Error('Les deux mots de passe ne sont pas pareils.');
+      settings.setAdminPassword(f.pw); return ['/admin/acces', 'Mot de passe changé. Ton navigateur va peut-être te le redemander.'];
+    case 'link-renew': settings.adminLinkToken(true); return ['/admin/acces', 'Nouveau lien créé. L’ancien ne marche plus.'];
     default: throw new Error('Action inconnue.');
   }
 }
@@ -236,9 +274,30 @@ async function handle(req, res) {
   if (extraRoute && (await extraRoute(req, res, url))) return;
   if (url.pathname === '/' || url.pathname === '/health') { res.setHeader('Content-Type', 'text/plain; charset=utf-8'); res.end(`LAMP AI ok — version ${VERSION}`); return; }
   if (!url.pathname.startsWith('/admin')) { res.statusCode = 404; res.end(); return; }
-  const [user, pass] = Buffer.from((req.headers.authorization || '').replace(/^Basic /, ''), 'base64').toString().split(':');
-  if (!ADMIN_PASSWORD || user !== 'admin' || !same(pass || '', ADMIN_PASSWORD)) {
-    res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="LAMP admin", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Accès refusé'); return;
+  if (!accessOn()) { res.statusCode = 404; res.end(); return; }          // no password at all: no dashboard
+  const ip = ipOf(req);
+  if (blocked(ip)) { res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Trop d’essais. Réessaie dans 15 minutes.'); return; }
+  // magic link: /admin/lien/<token> → a cookie for this browser, then the dashboard
+  const linkMatch = url.pathname.match(/^\/admin\/lien\/([\w-]+)$/);
+  if (linkMatch) {
+    if (!same(linkMatch[1], settings.adminLinkToken())) { failed(ip); res.statusCode = 404; res.end('Lien invalide'); return; }
+    res.writeHead(303, { 'Set-Cookie': `${COOKIE}=${cookieValue()}; Path=/admin; Max-Age=${400 * 86400}; HttpOnly; Secure; SameSite=Lax`, Location: '/admin', 'Referrer-Policy': 'no-referrer' });
+    res.end(); return;
+  }
+  if (url.pathname === '/admin/deconnexion') {
+    res.writeHead(200, { 'Set-Cookie': `${COOKIE}=; Path=/admin; Max-Age=0; HttpOnly; Secure; SameSite=Lax`, 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(page('LAMP', '', '<h1>Déconnecté sur cet appareil</h1><p class="muted">Pour revenir : ton lien magique, ou <a href="/admin">identifiant et mot de passe</a>.</p>'));
+    return;
+  }
+  const auth = req.headers.authorization || '';
+  if (!cookieOk(req)) {
+    const pair = Buffer.from(auth.replace(/^Basic /, ''), 'base64').toString(); const cut = pair.indexOf(':');
+    const user = pair.slice(0, cut); const pass = pair.slice(cut + 1);
+    const good = auth.startsWith('Basic ') && user === 'admin' && settings.checkAdminPassword(pass, ADMIN_PASSWORD);
+    if (!good) {
+      if (auth) failed(ip);
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="LAMP admin", charset="UTF-8"', 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Accès refusé'); return;
+    }
   }
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -253,7 +312,8 @@ async function handle(req, res) {
       [to, msg, bad] = await action(f);
     } catch (e) {
       msg = e.message; bad = true;
-      to = /^key-/.test(f.do) ? '/admin/cles' : /^g-/.test(f.do) ? '/admin/comportement' : f.do === 'limits' ? '/admin/limites' : '/admin';
+      to = /^key-/.test(f.do) ? '/admin/cles' : /^g-/.test(f.do) ? '/admin/comportement' : f.do === 'limits' ? '/admin/limites'
+        : ['password', 'link-renew'].includes(f.do) ? '/admin/acces' : '/admin';
     }
     if (!to.startsWith('/admin')) to = '/admin';
     res.writeHead(303, { Location: `${to}?${bad ? 'err' : 'ok'}=${encodeURIComponent(msg)}` }); res.end();
@@ -272,6 +332,7 @@ async function handle(req, res) {
     case '/admin/cles': res.end(page('LAMP — clés Gemini', '/admin/cles', keysPage(), flash)); return;
     case '/admin/comportement': res.end(page('LAMP — comportement', '/admin/comportement', behaviourPage(), flash)); return;
     case '/admin/limites': res.end(page('LAMP — limites', '/admin/limites', limitsPage(), flash)); return;
+    case '/admin/acces': res.end(page('LAMP — accès', '/admin/acces', accessPage(req), flash)); return;
     default: res.statusCode = 404; res.end(page('LAMP', '', '<p>Page introuvable.</p>'));
   }
 }
@@ -283,5 +344,5 @@ export function startAdmin(route = null) {
   const port = PORT || (WEBHOOK_URL ? 3000 : 0);
   if (!port && !process.env.PASSENGER_APP_ENV) return;
   http.createServer((req, res) => handle(req, res).catch((e) => { console.error('[Admin]', e.message); res.statusCode = 500; res.end('Erreur'); }))
-    .listen(port || 3000, () => console.log(`[Web] listening on ${port || 3000} — /admin ${ADMIN_PASSWORD ? 'on' : 'off (no LAMP_ADMIN_PASSWORD)'}${WEBHOOK_URL ? ' — Telegram webhook on' : ''}`));
+    .listen(port || 3000, () => console.log(`[Web] listening on ${port || 3000} — /admin ${accessOn() ? 'on' : 'off (no LAMP_ADMIN_PASSWORD)'}${WEBHOOK_URL ? ' — Telegram webhook on' : ''}`));
 }
