@@ -3,6 +3,7 @@
 // Runs inside the bot process; on Railway, PORT is given automatically.
 import http from 'http';
 import crypto from 'crypto';
+import { execFileSync } from 'child_process';
 import { ADMIN_PASSWORD, PORT, WEBHOOK_URL } from './config.js';
 import { listUsers, getMessages, backend } from './store.js';
 
@@ -23,12 +24,15 @@ main{max-width:860px;margin:0 auto;padding:24px 16px}h1{font-size:28px;margin:0 
 .sess{text-align:left;color:var(--muted);font-size:13px;margin:22px 0 4px;border-top:1px solid var(--line);padding-top:8px}
 </style></head><body><main>${body}</main></body></html>`;
 
+// the code version running now (shown on /health, to check that automatic updates arrived)
+const VERSION = (() => { try { return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' }).trim(); } catch { return 'inconnue'; } })();
+
 let extraRoute = null;   // (req, res, url) => true when handled (Telegram webhook)
 
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   if (extraRoute && (await extraRoute(req, res, url))) return;
-  if (url.pathname === '/' || url.pathname === '/health') { res.end('LAMP AI ok'); return; }
+  if (url.pathname === '/' || url.pathname === '/health') { res.end(`LAMP AI ok — version ${VERSION}`); return; }
   if (!url.pathname.startsWith('/admin')) { res.statusCode = 404; res.end(); return; }
   const [user, pass] = Buffer.from((req.headers.authorization || '').replace(/^Basic /, ''), 'base64').toString().split(':');
   if (!ADMIN_PASSWORD || user !== 'admin' || !same(pass || '', ADMIN_PASSWORD)) {
