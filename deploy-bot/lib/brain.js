@@ -6,6 +6,7 @@
 import { generate, generateText, parseJson, groqTranscribe, elevenTranscribe } from './ai.js';
 import { buildContext } from './prompt.js';
 import { MAX_TOOL_ROUNDS } from './config.js';
+import { onChange as onSettingsChange } from './settings.js';
 import * as S from './sources.js';
 
 // ─── 1. understand ───────────────────────────────────────────────────────────
@@ -271,6 +272,7 @@ export function checkArabic(reply) {
 
 // ─── answers without AI ──────────────────────────────────────────────────────
 const CACHE = new Map();     // same first question within 24 h → same answer (new conversations only)
+onSettingsChange(() => CACHE.clear());   // new instructions from the admin page: no old answer is reused
 setInterval(() => { const now = Date.now(); for (const [k, v] of CACHE) if (v.until < now) CACHE.delete(k); }, 3600_000).unref();
 
 const GREETING = /^\s*(?:(?:as+)?-?sa?l[ae]+m(?:ou|u)?(?:\s*-?\s*al[ae]?[iy]?k(?:ou|u)?m)?|salut|bonjour|bonsoir|hello|hi|hey|nanga\s*def|na\s*nga\s*def|jamm\s*nga\s*am|mbaa\s*jamm|wa\s*alaykum\s*salam)[\s,!.?]*(?:(?:nanga|na nga)\s*def|ça\s*va|comment\s*(?:vas|allez)[- ]\w+|how\s+are\s+you|lamp|serigne|sëriñ)?[\s,!.?]*$/i;

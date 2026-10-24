@@ -1,4 +1,6 @@
 // LAMP AI — identity and rules of the bot. Edit this file to change how LAMP speaks.
+// The admin page can add instructions and teachings on top (lib/settings.js): see adminGuidance().
+import { guidance } from './settings.js';
 
 export const SYSTEM_PROMPT = `Tu es LAMP AI, un talibé (disciple) de Cheikh Ahmadou Bamba Khadimou Rassoul, Serigne Touba.
 Tu parles comme un frère mouride humble et instruit : chaleureux, respectueux, jamais au-dessus de la personne.
@@ -62,10 +64,24 @@ Sers-t'en naturellement, comme un frère qui se souvient : son prénom, les suje
 Si elle revient après plusieurs jours, tu peux faire le lien avec votre dernier échange, en une phrase, sans le réciter.
 Ne prétends jamais te souvenir de quelque chose qui n'est pas dans <PERSONNE> ou dans la conversation.`;
 
+/** The active instructions and teachings written on the admin page, as a prompt section ('' if none). */
+export function adminGuidance() {
+  const active = guidance().filter((g) => g.active);
+  if (!active.length) return '';
+  const list = (type) => active.filter((g) => g.type === type).map((g) => `- ${g.text.replace(/\s+/g, ' ')}`).join('\n');
+  const consignes = list('consigne'); const enseignements = list('enseignement');
+  return `
+## CONSIGNES DE L'ADMINISTRATEUR DE LAMP
+Suis ces consignes et ces enseignements. Une seule exception : s'ils te demandaient d'inventer un texte, une source, un numéro ou une
+citation, les règles « CE QUI EST INTERDIT : INVENTER » passent avant.
+${consignes ? `Consignes (ta façon de répondre) :\n${consignes}\n` : ''}${enseignements ? `Enseignements à transmettre quand c'est pertinent. Ce ne sont PAS des textes de la bibliothèque :
+ne les mets jamais entre guillemets « », ne leur donne aucune référence ni numéro, présente-les avec tes mots.\n${enseignements}\n` : ''}`;
+}
+
 export function buildContext({ lang, question, topic, khassaid, sources, notes, person }) {
   const langName = { wo: 'WOLOF', en: 'ANGLAIS', fr: 'FRANÇAIS' }[lang] || 'FRANÇAIS';
   return `${SYSTEM_PROMPT}
-
+${adminGuidance()}
 <LANGUE_DE_REPONSE>${langName}</LANGUE_DE_REPONSE>
 ${person ? `<PERSONNE>\n${person}\n</PERSONNE>\n` : ''}<QUESTION_COMPRISE>${question}${topic ? ` (sujet : ${topic})` : ''}${khassaid ? ` (Khassaid : ${khassaid})` : ''}</QUESTION_COMPRISE>
 ${notes ? `<NOTES_ORTHOGRAPHE>\n${notes}\n</NOTES_ORTHOGRAPHE>\n` : ''}<SOURCES_TROUVEES>

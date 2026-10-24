@@ -55,7 +55,9 @@ Puis **Restart** dans Setup Node.js App.
 ## 5. Vérifier
 - Ouvrir `https://lamp.tondomaine.com/health` → doit afficher `LAMP AI ok`.
 - Envoyer `/start` au bot sur Telegram.
-- Conversations : `https://lamp.tondomaine.com/admin` (identifiant `admin`).
+- Tableau de bord : `https://lamp.tondomaine.com/admin` (identifiant `admin`, mot de passe `LAMP_ADMIN_PASSWORD`) :
+  vue d'ensemble (questions, crédits IA, erreurs), conversations, clés Gemini (ajouter, tester, ordre),
+  comportement (consignes et enseignements), limites par jour. Ces réglages sont gardés dans `LAMP_DATA_DIR/settings.json`.
 
 ## 6. Mise à jour automatique
 cPanel → **Cron Jobs** → toutes les 10 minutes (`*/10 * * * *`), commande (remplacer le chemin

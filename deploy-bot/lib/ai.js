@@ -1,16 +1,63 @@
 // LAMP AI — model calls with timeout + automatic fallback (Gemini chain, then Groq)
 import { GoogleGenAI } from '@google/genai';
-import { GEMINI_API_KEYS, GROQ_API_KEY, CEREBRAS_API_KEY, ANSWER_ROUTES, LIGHT_ROUTE, FORCE_ANSWER_MODEL, ELEVENLABS_API_KEY, MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
+import { geminiKeys } from './settings.js';
+import * as stats from './stats.js';
+import { GROQ_API_KEY, CEREBRAS_API_KEY, ANSWER_ROUTES, LIGHT_ROUTE, FORCE_ANSWER_MODEL, ELEVENLABS_API_KEY, MODELS, AI_TIMEOUT_MS, LIGHT_TIMEOUT_MS } from './config.js';
 
 // ─── Gemini keys: use the first working one, skip a key whose billing/permission fails ───
-const KEYS = GEMINI_API_KEYS.map((apiKey, i) => ({ n: i + 1, client: new GoogleGenAI({ apiKey }), deadUntil: 0 }));
-const liveKeys = () => KEYS.filter((k) => k.deadUntil < Date.now());
+// The list comes from the admin page (or cPanel): read on every call, so a key added there works at once.
+const keyState = new Map();   // api key -> { client, deadUntil, ok, okAt, error, errorAt }
+function allKeys() {
+  return geminiKeys().map((apiKey, i) => {
+    let k = keyState.get(apiKey);
+    if (!k) { k = { client: new GoogleGenAI({ apiKey }), deadUntil: 0, ok: 0, okAt: null, error: '', errorAt: null }; keyState.set(apiKey, k); }
+    k.n = i + 1; k.apiKey = apiKey;
+    return k;
+  });
+}
+const liveKeys = () => allKeys().filter((k) => k.deadUntil < Date.now());
 function killKey(k, msg) {
   k.deadUntil = Date.now() + 30 * 60_000;
   console.warn(`[AI] Gemini key #${k.n} refused (${msg.slice(0, 70)}) → ${liveKeys().length ? 'next key' : 'no key left'}`);
+  stats.error(`clé Gemini n°${k.n}`, msg);
+}
+const keyOk = (k) => { k.ok++; k.okAt = new Date().toISOString(); };
+const keyError = (k, msg) => { k.error = String(msg).slice(0, 200); k.errorAt = new Date().toISOString(); };
+
+/** For the admin page: how each key is doing since the last restart. */
+export function keyStatus() {
+  return allKeys().map((k) => ({
+    n: k.n, masked: `${k.apiKey.slice(0, 6)}…${k.apiKey.slice(-4)}`, ok: k.ok, okAt: k.okAt, error: k.error, errorAt: k.errorAt,
+    pausedUntil: k.deadUntil > Date.now() ? new Date(k.deadUntil).toISOString() : null,
+  }));
+}
+
+/** One tiny call to see whether a key works now. */
+export async function testKey(index) {
+  const k = allKeys()[index];
+  if (!k) throw new Error('clé introuvable');
+  // the cheapest allowed model first; if Google is busy on one model, the other one tells whether the key works
+  let msg = '';
+  for (const model of [...MODELS.answer].reverse()) {
+    try {
+      const r = await withTimeout(k.client.models.generateContent({ model, contents: 'Réponds seulement : OK', config: { maxOutputTokens: 20 } }), 20_000, 'test');
+      count('gemini', r.usageMetadata?.promptTokenCount, r.usageMetadata?.candidatesTokenCount);
+      keyOk(k); k.deadUntil = 0;
+      return { ok: true, text: 'La clé fonctionne.' };
+    } catch (e) {
+      msg = String(e?.message || e);
+      if (!isBusy(msg) && !isQuota(msg)) break;       // a key problem: the other model would say the same
+    }
+  }
+  keyError(k, msg);
+  const why = /prepayment|depleted|billing/i.test(msg) ? 'crédit épuisé sur ce compte Google'
+    : isQuota(msg) ? 'quota du jour épuisé (elle remarchera plus tard)'
+      : /API_KEY|PERMISSION_DENIED|\b40[13]\b|invalid/i.test(msg) ? 'clé refusée par Google (invalide ou désactivée)'
+        : isBusy(msg) ? 'Google est saturé en ce moment, réessaie' : msg.slice(0, 120);
+  return { ok: false, text: why };
 }
 /** `ai.models` always points at the first working key (used by TTS and embeddings). */
-export const ai = { get models() { return (liveKeys()[0] || KEYS[0]).client.models; } };
+export const ai = { get models() { return (liveKeys()[0] || allKeys()[0]).client.models; } };
 
 // Voice has its own small daily quota per key: try each key until one still has some.
 const ttsSpent = new Map();   // key n -> until
@@ -31,7 +78,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ─── token counter (text models only) ────────────────────────────────────────
 const usage = { gemini: { calls: 0, in: 0, out: 0 }, groq: { calls: 0, in: 0, out: 0 }, cerebras: { calls: 0, in: 0, out: 0 } };
-function count(who, input = 0, output = 0) { usage[who].calls++; usage[who].in += input || 0; usage[who].out += output || 0; }
+function count(who, input = 0, output = 0) { usage[who].calls++; usage[who].in += input || 0; usage[who].out += output || 0; stats.tokens(who, input, output); }
 export const getUsage = () => structuredClone(usage);
 export function resetUsage() { for (const u of Object.values(usage)) Object.assign(u, { calls: 0, in: 0, out: 0 }); }
 
@@ -91,11 +138,13 @@ export async function generate(params, chain = 'answer') {
       const wait = Math.max(5_000, Math.min(timeout, deadline - Date.now()));
       const r = await withTimeout(key.client.models.generateContent({ ...geminiParams, config, model }), wait, model);
       count('gemini', r.usageMetadata?.promptTokenCount, (r.usageMetadata?.candidatesTokenCount || 0) + (r.usageMetadata?.thoughtsTokenCount || 0));
+      keyOk(key);
       if (chain === 'answer') lastRoute = `gemini:${model}`;
       return r;
     } catch (err) {
       lastErr = err;
       const msg = String(err?.message || err);
+      if (!isBusy(msg) && !/timeout/i.test(msg)) keyError(key, msg);
       if (/API_KEY|PERMISSION_DENIED|\b40[123]\b|suspended|prepayment|depleted/i.test(msg) && !/\b429\b|RESOURCE_EXHAUSTED/.test(msg)) {
         killKey(key, msg);                                     // key/account problem: no model will work with this key
       } else if (isQuota(msg)) {

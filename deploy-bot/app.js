@@ -15,15 +15,19 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { TELEGRAM_TOKEN, GEMINI_API_KEY, VOICE_REPLY, WEBHOOK_URL, WEBHOOK_SECRET, TELEGRAM_API_URL } from './lib/config.js';
 
-if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
+if (!TELEGRAM_TOKEN || (!GEMINI_API_KEY && !(await import('./lib/settings.js')).geminiKeys().length)) {
   console.error('[LAMP] Missing env vars: TELEGRAM_TOKEN and GEMINI_API_KEY are required');
   process.exit(1);
 }
 
 const { answer, transcribe, guessLang } = await import('./lib/brain.js');
-const { take, giveBack, LIMIT_MSG } = await import('./lib/quota.js');
+const { take, giveBack, limitMsg } = await import('./lib/quota.js');
+const { dailyLimit, geminiKeys } = await import('./lib/settings.js');
+const stats = await import('./lib/stats.js');
+const { checkStats, quoteStats } = await import('./lib/brain.js');
+const { lastAnswerModel } = await import('./lib/ai.js');
+stats.watchCounters(() => ({ ...checkStats, ...quoteStats }));
 const { loadUser } = await import('./lib/store.js');
-const { DAILY_LIMIT } = await import('./lib/config.js');
 const { warmUp, listKhassaids } = await import('./lib/sources.js');
 const { getContext, addExchange, newSession, forgetUser, activeChats } = await import('./lib/history.js');
 const { startAdmin } = await import('./lib/admin.js');
@@ -131,8 +135,10 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
   let lang = 'fr';
   try {
     const ctx = await getContext(chatId);
+    stats.question(chatId, { voice: fromVoice });
     const r = await answer(question, ctx.history, { ...ctx, name: ctx.name || [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') });
     lang = r.lang;
+    stats.answered(r.direct || r.cached ? '' : lastAnswerModel());
     stop();
     await send(chatId, r.text);
     await addExchange(chatId, msg.from, question, r.text, { lang, voice: fromVoice });
@@ -142,6 +148,7 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
     stop();
     console.error('[Answer] failed:', e?.message || e);
     giveBack(chatId);                 // no answer: the question does not count
+    stats.busy(); stats.error('réponse', e?.message || e);
     await send(chatId, BUSY_MSG[lang] || BUSY_MSG.fr);
   }
 }
@@ -159,7 +166,7 @@ bot.onText(/^\/start\b/, (msg) => {
     `de la **Sunna** du Prophète (ﷺ) et des **enseignements de Cheikh Ahmadou Bamba**.\n\n` +
     `Écris-moi ou envoie un vocal, en français, en wolof ou en anglais.\n\n` +
     `Essaie :\n• Que disent les Khassaids sur la patience ?\n• Lis-moi les 5 premiers distiques de Jazbul Qulub\n• Naka la Serigne Touba gisé liggéey ?\n\n` +
-    (DAILY_LIMIT ? `Tu peux me poser jusqu'à **${DAILY_LIMIT} questions par jour**.\n\n` : '') +
+    (dailyLimit() ? `Tu peux me poser jusqu'à **${dailyLimit()} questions par jour**.\n\n` : '') +
     `Je me souviens de nos échanges d'une fois sur l'autre. Nos conversations sont enregistrées pour cela et pour améliorer LAMP.\n\n` +
     `/khassaids — la liste des Khassaids de la bibliothèque\n/clear — nouvelle conversation\n/oublie — effacer tout ce que je sais de toi`);
 });
@@ -199,7 +206,8 @@ bot.on('message', (msg) => {
     console.log(`[Message] ${chatId}: ${msg.text.slice(0, 80)}`);
     if (!take(chatId)) {             // limit reached: answered in the person's language, without any AI
       console.log(`[Quota] ${chatId}: daily limit reached`);
-      send(chatId, LIMIT_MSG[guessLang(msg.text)] || LIMIT_MSG.fr);
+      stats.limited();
+      send(chatId, limitMsg(guessLang(msg.text)));
       return;
     }
     enqueue(chatId, () => handleQuestion(msg, msg.text.trim()));
@@ -210,7 +218,8 @@ bot.on('message', (msg) => {
   if (media) {
     if (!take(chatId)) {             // checked before downloading or transcribing: costs nothing
       console.log(`[Quota] ${chatId}: daily limit reached (voice)`);
-      loadUser(chatId, 0).then((u) => u.profile.lang).catch(() => 'fr').then((l) => send(chatId, LIMIT_MSG[l] || LIMIT_MSG.fr));
+      loadUser(chatId, 0).then((u) => u.profile.lang).catch(() => 'fr').then((l) => send(chatId, limitMsg(l)));
+      stats.limited();
       return;
     }
     enqueue(chatId, async () => {
@@ -231,6 +240,7 @@ bot.on('message', (msg) => {
       } catch (e) {
         stop();
         console.error('[Voice] failed:', e?.message || e);
+        stats.error('vocal', e?.message || e);
         giveBack(chatId);
         await send(chatId, BUSY_MSG.fr);
       }
