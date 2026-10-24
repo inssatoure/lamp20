@@ -20,7 +20,10 @@ if (!TELEGRAM_TOKEN || !GEMINI_API_KEY) {
   process.exit(1);
 }
 
-const { answer, transcribe } = await import('./lib/brain.js');
+const { answer, transcribe, guessLang } = await import('./lib/brain.js');
+const { take, giveBack, LIMIT_MSG } = await import('./lib/quota.js');
+const { loadUser } = await import('./lib/store.js');
+const { DAILY_LIMIT } = await import('./lib/config.js');
 const { warmUp, listKhassaids } = await import('./lib/sources.js');
 const { getContext, addExchange, newSession, forgetUser, activeChats } = await import('./lib/history.js');
 const { startAdmin } = await import('./lib/admin.js');
@@ -138,6 +141,7 @@ async function handleQuestion(msg, question, { fromVoice = false } = {}) {
   } catch (e) {
     stop();
     console.error('[Answer] failed:', e?.message || e);
+    giveBack(chatId);                 // no answer: the question does not count
     await send(chatId, BUSY_MSG[lang] || BUSY_MSG.fr);
   }
 }
@@ -155,6 +159,7 @@ bot.onText(/^\/start\b/, (msg) => {
     `de la **Sunna** du Prophète (ﷺ) et des **enseignements de Cheikh Ahmadou Bamba**.\n\n` +
     `Écris-moi ou envoie un vocal, en français, en wolof ou en anglais.\n\n` +
     `Essaie :\n• Que disent les Khassaids sur la patience ?\n• Lis-moi les 5 premiers distiques de Jazbul Qulub\n• Naka la Serigne Touba gisé liggéey ?\n\n` +
+    (DAILY_LIMIT ? `Tu peux me poser jusqu'à **${DAILY_LIMIT} questions par jour**.\n\n` : '') +
     `Je me souviens de nos échanges d'une fois sur l'autre. Nos conversations sont enregistrées pour cela et pour améliorer LAMP.\n\n` +
     `/khassaids — la liste des Khassaids de la bibliothèque\n/clear — nouvelle conversation\n/oublie — effacer tout ce que je sais de toi`);
 });
@@ -192,16 +197,26 @@ bot.on('message', (msg) => {
   if (msg.text) {
     if (msg.text.startsWith('/')) return;              // commands handled above
     console.log(`[Message] ${chatId}: ${msg.text.slice(0, 80)}`);
+    if (!take(chatId)) {             // limit reached: answered in the person's language, without any AI
+      console.log(`[Quota] ${chatId}: daily limit reached`);
+      send(chatId, LIMIT_MSG[guessLang(msg.text)] || LIMIT_MSG.fr);
+      return;
+    }
     enqueue(chatId, () => handleQuestion(msg, msg.text.trim()));
     return;
   }
 
   const media = msg.voice || msg.audio || msg.video_note;
   if (media) {
+    if (!take(chatId)) {             // checked before downloading or transcribing: costs nothing
+      console.log(`[Quota] ${chatId}: daily limit reached (voice)`);
+      loadUser(chatId, 0).then((u) => u.profile.lang).catch(() => 'fr').then((l) => send(chatId, LIMIT_MSG[l] || LIMIT_MSG.fr));
+      return;
+    }
     enqueue(chatId, async () => {
       const stop = keepTyping(chatId);
       try {
-        if (media.file_size && media.file_size > 19 * 1024 * 1024) { stop(); return send(chatId, 'Ce fichier audio est trop long. Envoie un vocal plus court, s\'il te plaît.'); }
+        if (media.file_size && media.file_size > 19 * 1024 * 1024) { stop(); giveBack(chatId); return send(chatId, 'Ce fichier audio est trop long. Envoie un vocal plus court, s\'il te plaît.'); }
         const link = await bot.getFileLink(media.file_id);
         const res = await fetch(link);
         if (!res.ok) throw new Error(`download ${res.status}`);
@@ -209,13 +224,14 @@ bot.on('message', (msg) => {
         const mime = msg.voice ? 'audio/ogg' : msg.video_note ? 'video/mp4' : (media.mime_type || 'audio/mpeg');
         const said = (await transcribe(buf, mime)).trim();
         stop();
-        if (!said) return send(chatId, "Je n'ai pas bien entendu. Peux-tu répéter ou l'écrire ?");
+        if (!said) { giveBack(chatId); return send(chatId, "Je n'ai pas bien entendu. Peux-tu répéter ou l'écrire ?"); }
         console.log(`[Voice] ${chatId}: ${said.slice(0, 80)}`);
         await send(chatId, `🎙️ _${said}_`);
         await handleQuestion(msg, said, { fromVoice: true });
       } catch (e) {
         stop();
         console.error('[Voice] failed:', e?.message || e);
+        giveBack(chatId);
         await send(chatId, BUSY_MSG.fr);
       }
     });

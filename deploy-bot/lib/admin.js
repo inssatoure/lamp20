@@ -6,6 +6,9 @@ import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { ADMIN_PASSWORD, PORT, WEBHOOK_URL } from './config.js';
 import { listUsers, getMessages, backend } from './store.js';
+import { usedToday } from './quota.js';
+import { DAILY_LIMIT, UNLIMITED_IDS } from './config.js';
+const todayUse = (id) => (DAILY_LIMIT && !UNLIMITED_IDS.has(String(id)) ? ` · aujourd'hui : ${usedToday(id)}/${DAILY_LIMIT} questions` : '');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const same = (a, b) => { const x = Buffer.from(a); const y = Buffer.from(b); return x.length === y.length && crypto.timingSafeEqual(x, y); };
@@ -46,7 +49,7 @@ async function handle(req, res) {
     res.end(page('LAMP — conversations', `<h1>Conversations LAMP AI</h1>
 <p class="muted">${users.length} personne(s) · stockage : ${backend === 'firestore' ? 'Firestore' : 'fichiers du serveur'}</p>
 ${users.map((u) => `<a class="u" href="/admin?u=${encodeURIComponent(u.id)}"><b>${esc(u.profile.name || 'Sans nom')}</b>
-${u.profile.username ? ` · @${esc(u.profile.username)}` : ''}<br><span class="muted">${u.profile.count || 0} message(s) · dernier : ${date(u.profile.last_seen)} · langue : ${esc(u.profile.lang || '?')}</span></a>`).join('')}`));
+${u.profile.username ? ` · @${esc(u.profile.username)}` : ''}<br><span class="muted">${u.profile.count || 0} message(s) · dernier : ${date(u.profile.last_seen)} · langue : ${esc(u.profile.lang || '?')}${todayUse(u.id)}</span></a>`).join('')}`));
     return;
   }
   const [users, msgs] = await Promise.all([listUsers(), getMessages(id)]);
@@ -58,7 +61,7 @@ ${u.profile.username ? ` · @${esc(u.profile.username)}` : ''}<br><span class="m
     return `${head}<div dir="auto" class="m ${m.role === 'user' ? 'user' : 'model'}">${m.voice ? '🎙️ ' : ''}${esc(m.text)}</div>`;
   }).join('');
   res.end(page(`LAMP — ${u.profile.name || id}`, `<p><a href="/admin">← toutes les conversations</a></p>
-<h1>${esc(u.profile.name || 'Sans nom')}</h1><p class="muted">${u.profile.username ? `@${esc(u.profile.username)} · ` : ''}première visite : ${date(u.profile.first_seen)}</p>
+<h1>${esc(u.profile.name || 'Sans nom')}</h1><p class="muted">${u.profile.username ? `@${esc(u.profile.username)} · ` : ''}première visite : ${date(u.profile.first_seen)}${todayUse(id)}</p>
 <h2>Mémoire du bot</h2><div class="mem">${esc(u.memory || '(rien encore)')}</div><h2>Messages</h2>${body || '<p class="muted">Aucun message.</p>'}`));
 }
 

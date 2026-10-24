@@ -13,7 +13,7 @@ function historyText(history, max = 6) {
   return history.slice(-max).map((m) => `${m.role === 'user' ? 'Utilisateur' : 'LAMP'}: ${m.text.slice(0, 300)}`).join('\n');
 }
 
-const WOLOF_WORDS = /(?<![\p{L}])(naka|nanga|nga|dafa|dama|dañu|danu|bëgg|begg|xam|xamul|wax|lan|lu|ndax|mooy|moo|dina|jërëjëf|jerejef|waaw|déedéet|deedeet|yàlla|yalla|ci|ak|bi|yi|gi|li|dundee|dund|gisé|gise|liggéey|ligeey|jàng|jang|sama|yow|moom|ñoom|amul|mën|men|wolof)(?![\p{L}])/giu;
+const WOLOF_WORDS = /(?<![\p{L}])(naka|nanga|nga|dafa|dama|dañu|danu|bëgg|begg|xam|xamul|wax|lan|lu|ndax|mooy|moo|dina|jërëjëf|jerejef|waaw|déedéet|deedeet|yàlla|yalla|ci|ak|bi|yi|gi|li|dundee|dund|gisé|gise|liggéey|ligeey|jàng|jang|sama|yow|moom|ñoom|amul|mën|men|ngi|laaj|leneen|def|lool|tey|ëllëg|wóor|woor|rekk|waay|jox|nit|ñu)(?![\p{L}])/giu;
 export function guessLang(text) {
   if (/\b(r[ée]ponds?|wax|explique|parle)\b.{0,15}\bwolof\b/i.test(text)) return 'wo';
   const hits = (text.match(WOLOF_WORDS) || []).length;

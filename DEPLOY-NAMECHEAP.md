@@ -37,6 +37,8 @@ Puis **Environment variables** (Add Variable) :
 | `LAMP_WEBHOOK_SECRET` | un long mot au hasard (ex. 30 lettres et chiffres) |
 | `LAMP_ADMIN_PASSWORD` | ton mot de passe pour lire les conversations |
 | `LAMP_DATA_DIR` | `/home/TONUTILISATEUR/lamp-data` |
+| `LAMP_DAILY_LIMIT` | (facultatif) questions par personne et par jour — 10 par défaut, 0 = sans limite |
+| `LAMP_UNLIMITED_IDS` | (facultatif) identifiants Telegram sans limite, séparés par des virgules |
 
 Enregistrer, puis **Run NPM Install**.
 

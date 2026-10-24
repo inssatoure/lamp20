@@ -39,6 +39,10 @@ export const FIREBASE_SERVICE_ACCOUNT = process.env.FIREBASE_SERVICE_ACCOUNT || 
 // Admin page to read the conversations: http://<server>:<PORT>/admin  (off if no password)
 export const ADMIN_PASSWORD = process.env.LAMP_ADMIN_PASSWORD || '';
 export const PORT = Number(process.env.PORT || 0);
+// Questions allowed per person per day (Dakar time), to protect the AI credits. 0 = no limit.
+export const DAILY_LIMIT = Number(process.env.LAMP_DAILY_LIMIT ?? 10);
+// Telegram ids with no daily limit (comma-separated), e.g. the admin
+export const UNLIMITED_IDS = new Set((process.env.LAMP_UNLIMITED_IDS || '').split(',').map((x) => x.trim()).filter(Boolean));
 // Webhook mode (shared hosting such as Namecheap Stellar / cPanel "Setup Node.js App"): Telegram calls
 // this URL for every message instead of the bot polling. Must be https. Example: https://lamp.example.com/telegram
 export const WEBHOOK_URL = process.env.LAMP_WEBHOOK_URL || '';
