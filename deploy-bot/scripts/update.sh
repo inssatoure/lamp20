@@ -12,7 +12,7 @@ CHANGED=$(git diff --name-only "$OLD" "$NEW")
 git reset -q --hard "$NEW"
 cd deploy-bot || exit 1
 if echo "$CHANGED" | grep -q '^deploy-bot/package'; then npm install --omit=dev --no-audit --no-fund --loglevel=error; fi
-for f in app.js lib/*.js; do
+for f in start.cjs app.js lib/*.js; do
   if ! node --check "$f" 2>/dev/null; then
     echo "$(date '+%F %T') $f does not load — back to $OLD"
     cd .. && git reset -q --hard "$OLD" && echo "$NEW" > .lamp-bad-commit && exit 1

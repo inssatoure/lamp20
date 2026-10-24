@@ -23,7 +23,7 @@ cPanel → **Setup Node.js App** → **Create Application** :
 - Application mode : **Production**
 - Application root : `lamp20/deploy-bot`
 - Application URL : `lamp.tondomaine.com`
-- Application startup file : `app.js`
+- Application startup file : `start.cjs` (pas `app.js` : cPanel charge le fichier avec require())
 
 Puis **Environment variables** (Add Variable) :
 
