@@ -32,7 +32,7 @@ let extraRoute = null;   // (req, res, url) => true when handled (Telegram webho
 async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   if (extraRoute && (await extraRoute(req, res, url))) return;
-  if (url.pathname === '/' || url.pathname === '/health') { res.end(`LAMP AI ok — version ${VERSION}`); return; }
+  if (url.pathname === '/' || url.pathname === '/health') { res.setHeader('Content-Type', 'text/plain; charset=utf-8'); res.end(`LAMP AI ok — version ${VERSION}`); return; }
   if (!url.pathname.startsWith('/admin')) { res.statusCode = 404; res.end(); return; }
   const [user, pass] = Buffer.from((req.headers.authorization || '').replace(/^Basic /, ''), 'base64').toString().split(':');
   if (!ADMIN_PASSWORD || user !== 'admin' || !same(pass || '', ADMIN_PASSWORD)) {
