@@ -28,8 +28,8 @@ const SERVER_DIR = '/home/metawbms/lamp.metafrik.com';
 const candidates = [process.env.LAMP_ROOT_DIR, SERVER_DIR, APP_DIR, path.join(APP_DIR, '..')].filter(Boolean);
 export const ROOT_DIR = candidates.find((d) => fs.existsSync(path.join(d, 'Textes_Arabes_Serigne_Touba'))) || candidates.at(-1);
 export const TEXTES_DIR = path.join(ROOT_DIR, 'Textes_Arabes_Serigne_Touba');
-export const SOURCES_DIR = path.join(ROOT_DIR, 'sources');          // Coran + hadiths (scripts/fetch-sources.mjs)
-export const VERSETS_CACHE = path.join(ROOT_DIR, 'versets_cache.jsonl');
+export const SOURCES_DIR = process.env.LAMP_SOURCES_DIR || path.join(ROOT_DIR, 'sources');          // Coran + hadiths (scripts/fetch-sources.mjs)
+export const VERSETS_CACHE = process.env.LAMP_INDEX_FILE || path.join(ROOT_DIR, 'versets_cache.jsonl');   // meaning index (scripts/get-index.sh)
 export const HISTORY_FILE = path.join(ROOT_DIR, 'chat_histories.json');
 export const CHAT_LOG_FILE = path.join(ROOT_DIR, 'chat_logs.jsonl');
 // Where users' conversations and memories are kept (local backend). On Railway: a volume, e.g. /data

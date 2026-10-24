@@ -71,7 +71,10 @@ Analyse le message (dans le contexte de l'historique) et réponds en JSON :
     // model sometimes names a Khassaid nobody mentioned
     const said = [text, ...history.slice(-4).map((m) => m.text)];
     const fromModel = S.findKhassaid(o.khassaid);
-    const khassaid = S.findKhassaid(text) || (fromModel && said.some((t) => S.findKhassaid(t) === fromModel) ? fromModel : '');
+    // a title from the previous messages counts only for a real follow-up ("explique le premier vers",
+    // "et le dernier ?"), not for a new subject asked after it
+    const followUp = text.trim().split(/\s+/).length <= 8 || /(\bvers\b|distique|bëyit|beyit|ce (?:khassaid|poème|texte)|ce xassida|\bil\b|\bel\b|\bsuite\b|premier|dernier|explique|sens)/i.test(text);
+    const khassaid = S.findKhassaid(text) || (fromModel && followUp && said.some((t) => S.findKhassaid(t) === fromModel) ? fromModel : '');
     const asked = readingRequest(text);                       // clear wording beats the model's guess
     if (asked && khassaid) Object.assign(o, asked);
     // a Khassaid named in the question but absent from the library (or invented): said explicitly

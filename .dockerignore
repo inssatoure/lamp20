@@ -1,0 +1,12 @@
+.git
+**/node_modules
+versets_cache.jsonl*
+sources/
+data/
+archive/
+deploy-bot/test/exam-results
+deploy-bot/.env
+chat_histories.json
+chat_logs.jsonl
+*.log
+.proxy-ca.crt

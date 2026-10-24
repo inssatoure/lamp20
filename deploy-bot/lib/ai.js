@@ -74,11 +74,14 @@ export async function generate(params, chain = 'answer') {
   // checked backup model) instead of waiting minutes.
   const deadline = params.deadline || Date.now() + (chain === 'light' ? 12_000 : 45_000);
   let lastErr;
-  const tries = params.preferGroq && HAS_BACKUP ? [] : models.flatMap((model) => liveKeys().map((key) => ({ model, key })));
-  for (const { model, key } of tries) {                     // best model on every key first, then the next model
+  const pass = models.flatMap((model) => liveKeys().map((key) => ({ model, key })));
+  // two passes: if every model is briefly overloaded, wait a little and try once more before giving up
+  const tries = params.preferGroq && HAS_BACKUP ? [] : [...pass, { pause: true }, ...pass.map((t) => ({ ...t, second: true }))];
+  for (const { model, key, pause, second } of tries) {      // best model on every key first, then the next model
+    if (pause) { if (Date.now() + 8_000 > deadline) break; await sleep(4_000); continue; }
     const slot = `${key.n}:${model}`;
     if (isExhausted(slot) || key.deadUntil > Date.now()) continue;
-    if ((overloaded.get(model) || 0) > Date.now()) continue;  // slow/overloaded on another key: same on this one
+    if (!second && (overloaded.get(model) || 0) > Date.now()) continue;  // overloaded on another key: same on this one
     if (Date.now() > deadline) { console.warn(`[AI] Gemini too slow today${HAS_BACKUP ? ' → backup models' : ''}`); break; }
     try {
       const { toolRunner, _only, preferGroq, deadline: _d, ...geminiParams } = params;
@@ -100,7 +103,7 @@ export async function generate(params, chain = 'answer') {
         exhausted.set(slot, Date.now() + 10 * 60_000);
       } else if (/timeout/i.test(msg) || isBusy(msg)) {
         // overload is Google-side, per model: don't try the same model on the other keys for 2 minutes
-        overloaded.set(model, Date.now() + 2 * 60_000);
+        overloaded.set(model, Date.now() + (/timeout/i.test(msg) ? 60_000 : 10_000));   // a 503 is usually over in seconds
         console.warn(`[AI] ${model} ${/timeout/i.test(msg) ? 'too slow' : 'busy'} → next model`);
       } else {
         console.warn(`[AI] ${model} (key #${key.n}) error ${msg.slice(0, 60)} → next`);
